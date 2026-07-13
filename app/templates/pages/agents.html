@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1>
+  <p>{{ page_subtitle }}</p>
+</div>
+
+<div class="card" style="margin-bottom:18px">
+  <div class="card-head">
+    <h3><i class="bi bi-diagram-3"></i> Arquitectura de agentes</h3>
+    <form method="post" action="/agents/run">
+      <button class="btn btn-primary btn-sm" type="submit"><i class="bi bi-play-fill"></i> Ejecutar todos</button>
+    </form>
+  </div>
+  <p style="margin:0 0 6px;color:var(--text-muted);font-size:13.5px">
+    Los agentes operan de forma determinista (sin IA externa en esta fase) y devuelven una
+    respuesta estructurada. Toda recomendación <strong>requiere aprobación humana</strong>.
+  </p>
+</div>
+
+<div class="grid" style="grid-template-columns:repeat(2,1fr);margin-bottom:18px">
+  {% for ag in agents %}
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="bi bi-robot"></i> {{ ag.name }}</h3>
+      <form method="post" action="/agents/{{ ag.name }}/run">
+        <button class="btn btn-outline btn-sm" type="submit"><i class="bi bi-play"></i> Ejecutar</button>
+      </form>
+    </div>
+    <p style="margin:0;color:var(--text-muted);font-size:13.5px">{{ ag.description }}</p>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <h3><i class="bi bi-clock-history"></i> Ejecuciones recientes</h3>
+    <a href="/agent-executions" class="sub">Ver historial</a>
+  </div>
+  {% if recent_runs %}
+    {% for r in recent_runs %}
+    <div class="agent-run">
+      <div class="ar-icon"><i class="bi bi-cpu"></i></div>
+      <div style="flex:1">
+        <div class="ar-name">{{ r.agent_name }} · <span style="font-weight:400">{{ r.task }}</span>
+          <span class="chip chip-{{ 'success' if r.status in ['success','no_findings'] else 'warning' }}">{{ r.status }}</span>
+          {% if r.requires_human_approval %}<span class="chip chip-warning"><i class="bi bi-person-check"></i> Requiere aprobación</span>{% endif %}
+        </div>
+        <div class="ar-sum">{{ r.summary }}</div>
+        <time>{{ r.created_at.strftime('%d/%m/%Y %H:%M') }} · {{ r.duration_ms or 0 }} ms</time>
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="empty-state"><div class="es-icon"><i class="bi bi-robot"></i></div>
+      <p>Aún no hay ejecuciones. Pulse «Ejecutar todos» para generar una.</p></div>
+  {% endif %}
+</div>
+{% endblock %}

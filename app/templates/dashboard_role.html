@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1><i class="bi bi-speedometer2"></i> Panel · {{ identity.role_name }}</h1>
+  <p>{{ welcome }}</p>
+</div>
+
+<div class="period-banner" style="margin-bottom:18px">
+  <div>
+    <div class="pb-label">Bienvenido(a)</div>
+    <div class="pb-value">{{ identity.full_name }}</div>
+  </div>
+  {% if data.current_period %}
+  <div style="text-align:right">
+    <div class="pb-label">Periodo actual</div>
+    <div class="pb-value pb-gold">{{ data.current_period.name }}</div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Role-scoped summary uses a subset of the same stat cards -->
+<div class="grid stat-grid" style="margin-bottom:18px">
+  {% for c in data.stat_cards[:4] %}
+  <div class="stat-card tone-{{ c.tone }}">
+    <div class="s-icon"><i class="bi bi-{{ c.icon }}"></i></div>
+    <div>
+      <div class="s-value">{{ c.value }}</div>
+      <div class="s-label">{{ c.label }}</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="grid cols-2">
+  <div class="card">
+    <div class="card-head"><h3><i class="bi bi-info-circle"></i> Su espacio de trabajo</h3></div>
+    <div class="empty-state">
+      <div class="es-icon"><i class="bi bi-columns-gap"></i></div>
+      <h3>Módulos en construcción</h3>
+      <p>
+        El dashboard específico para el rol <strong>{{ identity.role_name }}</strong>
+        se completará en la Parte 2 con los flujos operativos correspondientes.
+        La estructura, navegación y permisos ya están habilitados.
+      </p>
+    </div>
+  </div>
+  <div style="display:grid; gap:18px; align-content:start">
+    <div class="card">
+      <div class="card-head"><h3><i class="bi bi-lightning-charge"></i> Accesos</h3></div>
+      <div class="quick-actions">
+        {% for qa in data.quick_actions %}
+        <a class="quick-action" href="{{ qa.href }}"><i class="bi bi-{{ qa.icon }}"></i>{{ qa.label }}</a>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3><i class="bi bi-bell"></i> Alertas</h3></div>
+      {% if data.recent_alerts %}
+        {% for al in data.recent_alerts[:4] %}
+        <div class="alert-row">
+          <span class="a-dot {{ al.severity }}"></span>
+          <div><div class="a-title">{{ al.title }}</div><div class="a-msg">{{ al.message }}</div></div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <p style="color:var(--text-muted)">Sin alertas.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import csrf_field, field, select_field, error_summary %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<nav class="result-count" style="margin-bottom:8px">
+  <a href="/rotations/{{ assignment.id }}">Rotación</a> / {{ 'Nueva actividad' if mode=='create' else 'Editar actividad' }}
+</nav>
+<div class="page-head"><h1><i class="bi bi-{{ page_icon or 'journal-plus' }}"></i> {{ page_title }}</h1><p>{{ page_subtitle }}</p></div>
+
+<div class="alert alert-danger" style="max-width:760px">
+  <i class="bi bi-shield-exclamation"></i>
+  No registre nombres, documentos, números de historia clínica ni otra información identificable del paciente.
+</div>
+
+<div class="card" style="max-width:760px">
+  {{ error_summary(errors) }}
+  <form method="post"
+        action="{% if mode=='create' %}/rotations/{{ assignment.id }}/activities/new{% else %}/activities/entries/{{ activity_id }}/edit{% endif %}"
+        novalidate>
+    {{ csrf_field(csrf_token) }}
+    <div class="form-grid">
+      {{ select_field("definition_id", "Actividad", options.definitions, form.get("definition_id"), required=True, errors=errors, empty_label="Seleccione…") }}
+      {{ field("logged_on", "Fecha realizada", form.get("logged_on"), type="date", required=True, errors=errors) }}
+      {{ field("performed_count", "Cantidad", form.get("performed_count", "1"), type="number", required=True, errors=errors) }}
+      {{ field("evidence_reference", "Referencia anónima (opcional)", form.get("evidence_reference"), errors=errors, help="Ej. 'Sala 4, turno tarde' — nunca un dato identificable.") }}
+      <div class="full">
+        <div class="form-group {% if errors.get('notes') %}has-error{% endif %}">
+          <label class="form-label" for="f_notes">Notas</label>
+          <textarea class="form-control" id="f_notes" name="notes">{{ form.get('notes','') }}</textarea>
+          {% if errors.get('notes') %}<small class="form-error">{{ errors.get('notes') }}</small>{% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit"><i class="bi bi-check-lg"></i> Guardar</button>
+      <a class="btn btn-outline" href="/rotations/{{ assignment.id }}">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

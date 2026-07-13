@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Acceso denegado{% endblock %}
+{% block content_anon %}
+<div class="error-page">
+  <div class="code">4<span>0</span>3</div>
+  <h2>Acceso denegado</h2>
+  <p>{{ message or "No tiene permisos para acceder a este recurso." }}
+     Si cree que se trata de un error, contacte al administrador.</p>
+  <a class="btn btn-primary" href="/dashboard"><i class="bi bi-house"></i> Ir al inicio</a>
+</div>
+{% endblock %}

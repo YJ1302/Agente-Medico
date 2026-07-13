@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import pagination %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="detail-head">
+  <div class="page-head" style="margin:0"><h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1><p>{{ page_subtitle }}</p></div>
+  <div class="actions">
+    <a class="btn btn-outline" href="/rotations/timeline"><i class="bi bi-calendar3"></i> Cronograma</a>
+    {% if can_create %}<a class="btn btn-primary" href="/rotations/new"><i class="bi bi-calendar-plus"></i> Nueva rotación</a>{% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <form method="get" action="/rotations" class="filter-bar">
+    <div class="filter-item"><label for="q">Buscar</label>
+      <input class="form-control search-input" type="search" id="q" name="q" value="{{ filters.q }}" placeholder="Interno o código" /></div>
+    <div class="filter-item"><label>Periodo</label>
+      <select class="form-control" name="period"><option value="">Todos</option>
+        {% for v,t in options.periods %}<option value="{{ v }}" {% if filters.period==(v|string) %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>
+    <div class="filter-item"><label>Rotación</label>
+      <select class="form-control" name="rtype"><option value="">Todas</option>
+        {% for v,t in options.rotation_types %}<option value="{{ v }}" {% if filters.rtype==(v|string) %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>
+    <div class="filter-item"><label>Sede</label>
+      <select class="form-control" name="sede"><option value="">Todas</option>
+        {% for v,t in options.sedes %}<option value="{{ v }}" {% if filters.sede==(v|string) %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>
+    <div class="filter-item"><label>Tutor</label>
+      <select class="form-control" name="tutor"><option value="">Todos</option>
+        {% for v,t in options.tutors %}<option value="{{ v }}" {% if filters.tutor==(v|string) %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>
+    <div class="filter-item"><label>Estado</label>
+      <select class="form-control" name="status"><option value="">Todos</option>
+        <option value="planned" {% if filters.status=='planned' %}selected{% endif %}>Planificada</option>
+        <option value="active" {% if filters.status=='active' %}selected{% endif %}>Activa</option>
+        <option value="completed" {% if filters.status=='completed' %}selected{% endif %}>Completada</option>
+        <option value="cancelled" {% if filters.status=='cancelled' %}selected{% endif %}>Cancelada</option></select></div>
+    <div class="filter-item"><label>Institución</label>
+      <select class="form-control" name="institution"><option value="">Todas</option>
+        <option value="MINSA" {% if filters.institution=='MINSA' %}selected{% endif %}>MINSA</option>
+        <option value="ESSALUD" {% if filters.institution=='ESSALUD' %}selected{% endif %}>EsSalud</option></select></div>
+    <div class="filter-item"><label>Tutor asignado</label>
+      <select class="form-control" name="tutorflag"><option value="">Todos</option>
+        <option value="1" {% if filters.tutorflag=='1' %}selected{% endif %}>Con tutor</option>
+        <option value="0" {% if filters.tutorflag=='0' %}selected{% endif %}>Sin tutor</option></select></div>
+    <button class="btn btn-primary btn-sm" type="submit"><i class="bi bi-search"></i> Filtrar</button>
+    <a class="btn btn-outline btn-sm" href="/rotations"><i class="bi bi-x-lg"></i> Limpiar</a>
+  </form>
+  <div class="result-count" style="margin-bottom:10px">{{ page.total }} resultado(s){% if page.total %} · {{ page.start_index }}–{{ page.end_index }}{% endif %}</div>
+
+  {% if page.items %}
+  <div class="table-scroll"><table class="data">
+    <thead><tr><th>Interno</th><th>Inst.</th><th>Sede</th><th>Rotación</th><th>Periodo</th><th>Fechas</th><th>Tutor</th><th>Estado</th><th>Eval.</th><th></th></tr></thead>
+    <tbody>{% for a in page.items %}
+      <tr>
+        <td>{{ a.student.full_name if a.student else '—' }}
+          {% if a.id in conflicted %}<i class="bi bi-exclamation-triangle-fill" style="color:var(--danger)" title="Conflicto detectado"></i>{% endif %}</td>
+        <td>{{ a.student.institution_type.code if a.student and a.student.institution_type else '—' }}</td>
+        <td>{{ a.sede.short_name if a.sede else '—' }}</td>
+        <td>{{ a.rotation_type.name if a.rotation_type else '—' }}</td>
+        <td>{{ a.period.name if a.period else '—' }}</td>
+        <td style="white-space:nowrap">{% if a.start_date %}{{ a.start_date.strftime('%d/%m/%y') }}{% endif %}{% if a.end_date %}–{{ a.end_date.strftime('%d/%m/%y') }}{% endif %}</td>
+        <td>{% if a.tutor %}{{ a.tutor.user.full_name }}{% else %}<span class="chip chip-danger">Sin tutor</span>{% endif %}</td>
+        <td><span class="chip chip-{{ {'active':'success','planned':'info','completed':'muted','cancelled':'danger'}.get(a.status,'muted') }}">{{ a.status }}</span></td>
+        <td>{% if a.evaluation %}<span class="chip chip-warning">{{ a.evaluation.status }}</span>{% else %}<span class="chip chip-muted">—</span>{% endif %}</td>
+        <td><a class="btn btn-outline btn-sm" href="/rotations/{{ a.id }}"><i class="bi bi-eye"></i></a></td>
+      </tr>
+    {% endfor %}</tbody>
+  </table></div>
+  {{ pagination(page, base_qs) }}
+  {% else %}
+  <div class="empty-state"><div class="es-icon"><i class="bi bi-search"></i></div><h3>Sin resultados</h3>
+    <p>No se encontraron rotaciones con los filtros aplicados.</p>
+    <a class="btn btn-light" href="/rotations"><i class="bi bi-x-lg"></i> Limpiar filtros</a></div>
+  {% endif %}
+</div>
+{% endblock %}

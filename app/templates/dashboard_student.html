@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1><i class="bi bi-speedometer2"></i> Mi Panel</h1>
+  <p>{{ welcome }}</p>
+</div>
+
+<div class="period-banner" style="margin-bottom:18px">
+  <div><div class="pb-label">Bienvenido(a)</div><div class="pb-value">{{ identity.full_name }}</div></div>
+  {% if data.current_period %}
+  <div style="text-align:right"><div class="pb-label">Periodo actual</div>
+    <div class="pb-value pb-gold">{{ data.current_period.name }}</div></div>
+  {% endif %}
+</div>
+
+{% if not data.student %}
+<div class="empty-state"><div class="es-icon"><i class="bi bi-person-x"></i></div>
+  <p>No se encontró un perfil de interno asociado a su cuenta.</p></div>
+{% else %}
+<div class="grid cols-2">
+  <div style="display:grid;gap:18px;align-content:start">
+    <div class="card">
+      <div class="card-head"><h3><i class="bi bi-arrow-repeat"></i> Rotación actual</h3></div>
+      {% if data.current %}
+      <div class="meta-grid">
+        <div class="m-item"><div class="m-label">Rotación</div><div class="m-value">{{ data.current.rotation_type.name if data.current.rotation_type else '—' }}</div></div>
+        <div class="m-item"><div class="m-label">Sede</div><div class="m-value">{{ data.current.sede.short_name if data.current.sede else '—' }}</div></div>
+        <div class="m-item"><div class="m-label">Tutor</div><div class="m-value">{{ data.current.tutor.user.full_name if data.current.tutor else 'Sin asignar' }}</div></div>
+        <div class="m-item"><div class="m-label">Días restantes</div><div class="m-value">{{ data.days_remaining if data.days_remaining is not none else '—' }}</div></div>
+      </div>
+      <div style="margin-top:12px"><a class="btn btn-outline btn-sm" href="/rotations/{{ data.current.id }}"><i class="bi bi-eye"></i> Ver rotación</a></div>
+      {% else %}<p style="color:var(--text-muted)">Sin rotación activa en este momento.</p>{% endif %}
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h3><i class="bi bi-calendar-event"></i> Próxima rotación</h3></div>
+      {% if data.upcoming %}
+      <div class="meta-grid">
+        <div class="m-item"><div class="m-label">Rotación</div><div class="m-value">{{ data.upcoming.rotation_type.name if data.upcoming.rotation_type else '—' }}</div></div>
+        <div class="m-item"><div class="m-label">Inicio</div><div class="m-value">{{ data.upcoming.start_date.strftime('%d/%m/%Y') if data.upcoming.start_date else '—' }}</div></div>
+      </div>
+      {% else %}<p style="color:var(--text-muted)">Sin rotación planificada próxima.</p>{% endif %}
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h3><i class="bi bi-clipboard-check"></i> Mi progreso de actividades</h3></div>
+      {% if data.activity_summary %}
+      <div class="meta-grid" style="margin-bottom:10px">
+        <div class="m-item"><div class="m-label">Verificadas</div><div class="m-value">{{ data.activity_summary.verified_count }}</div></div>
+        <div class="m-item"><div class="m-label">Pendientes</div><div class="m-value">{{ data.activity_summary.pending_count }}</div></div>
+      </div>
+      {% for row in data.activity_summary.fixed_rows %}
+      <div style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;font-size:13px"><span>{{ row.definition.name }}</span><span>{{ row.verified_count }}/{{ row.target_count }}</span></div>
+        <div class="progress"><div class="bar" style="width:{{ row.percent_display }}%"></div></div>
+      </div>
+      {% endfor %}
+      <a class="btn btn-outline btn-sm" href="/activities/mine"><i class="bi bi-journal-check"></i> Ver mis actividades</a>
+      {% else %}<p style="color:var(--text-muted)">Sin rotación activa para mostrar progreso.</p>{% endif %}
+    </div>
+  </div>
+
+  <div style="display:grid;gap:18px;align-content:start">
+    <div class="card">
+      <div class="card-head"><h3><i class="bi bi-check2-square"></i> Mi evaluación</h3></div>
+      {% if data.approved_evaluations %}
+        {% for e in data.approved_evaluations %}
+        <div class="meta-grid" style="margin-bottom:8px">
+          <div class="m-item"><div class="m-label">Rotación</div><div class="m-value">{{ e.assignment.rotation_type.name if e.assignment and e.assignment.rotation_type else '—' }}</div></div>
+          <div class="m-item"><div class="m-label">Nota final</div><div class="m-value">{{ '%.2f'|format(e.final_score) if e.final_score is not none else '—' }}</div></div>
+        </div>
+        <a class="btn btn-outline btn-sm" href="/evaluations/{{ e.id }}"><i class="bi bi-eye"></i> Ver evaluación</a>
+        {% endfor %}
+      {% else %}
+        <p style="color:var(--text-muted)">
+          {% if data.pending_evaluations_count %}Tiene {{ data.pending_evaluations_count }} evaluación(es) en proceso — se mostrará aquí cuando el coordinador la apruebe.
+          {% else %}Aún no tiene evaluaciones aprobadas.{% endif %}
+        </p>
+      {% endif %}
+    </div>
+    <div class="card">
+      <div class="card-head"><h3><i class="bi bi-bell"></i> Mis alertas</h3></div>
+      {% if data.alerts %}
+        {% for al in data.alerts %}
+        <div class="alert-row"><span class="a-dot {{ al.severity }}"></span>
+          <div><div class="a-title">{{ al.title }}</div><div class="a-msg">{{ al.message }}</div></div></div>
+        {% endfor %}
+      {% else %}<p style="color:var(--text-muted)">Sin alertas.</p>{% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

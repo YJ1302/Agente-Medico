@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import pagination %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="detail-head">
+  <div class="page-head" style="margin:0">
+    <h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1>
+    <p>{{ page_subtitle }}</p>
+  </div>
+  {% if can_manage %}
+  <a class="btn btn-primary" href="/sedes/new"><i class="bi bi-plus-lg"></i> Nueva sede</a>
+  {% endif %}
+</div>
+
+<div class="card">
+  <form method="get" action="/sedes" class="filter-bar">
+    <div class="filter-item">
+      <label for="q">Buscar</label>
+      <input class="form-control search-input" type="search" id="q" name="q"
+             value="{{ filters.q }}" placeholder="Nombre, nombre corto, ciudad o dirección" />
+    </div>
+    <div class="filter-item">
+      <label for="institution">Institución</label>
+      <select class="form-control" id="institution" name="institution">
+        <option value="">Todas</option>
+        {% for val, text in options.institution_codes %}
+        <option value="{{ val }}" {% if filters.institution==val %}selected{% endif %}>{{ text }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-item">
+      <label for="sede_type">Tipo</label>
+      <select class="form-control" id="sede_type" name="sede_type">
+        <option value="">Todos</option>
+        <option value="hospital" {% if filters.sede_type=='hospital' %}selected{% endif %}>Hospital</option>
+        <option value="health_center" {% if filters.sede_type=='health_center' %}selected{% endif %}>Centro de salud</option>
+      </select>
+    </div>
+    <div class="filter-item">
+      <label for="active">Estado</label>
+      <select class="form-control" id="active" name="active">
+        <option value="">Todos</option>
+        <option value="1" {% if filters.active=='1' %}selected{% endif %}>Activa</option>
+        <option value="0" {% if filters.active=='0' %}selected{% endif %}>Inactiva</option>
+      </select>
+    </div>
+    <div class="filter-item">
+      <label for="coordinator">Coordinador</label>
+      <select class="form-control" id="coordinator" name="coordinator">
+        <option value="">Todos</option>
+        <option value="1" {% if filters.coordinator=='1' %}selected{% endif %}>Con coordinador</option>
+        <option value="0" {% if filters.coordinator=='0' %}selected{% endif %}>Sin coordinador</option>
+      </select>
+    </div>
+    <button class="btn btn-primary btn-sm" type="submit"><i class="bi bi-search"></i> Filtrar</button>
+    <a class="btn btn-outline btn-sm" href="/sedes"><i class="bi bi-x-lg"></i> Limpiar</a>
+  </form>
+
+  <div class="result-count" style="margin-bottom:10px">
+    {{ page.total }} resultado(s){% if page.total %} · mostrando {{ page.start_index }}–{{ page.end_index }}{% endif %}
+  </div>
+
+  {% if page.items %}
+  <div class="table-scroll">
+    <table class="data">
+      <thead><tr><th>Sede</th><th>Institución</th><th>Tipo</th><th>Ciudad</th><th>Coordinador</th><th>Estado</th><th></th></tr></thead>
+      <tbody>
+        {% for s in page.items %}
+        <tr>
+          <td><strong>{{ s.short_name or s.name }}</strong><br><small style="color:var(--text-muted)">{{ s.name }}</small></td>
+          <td><span class="chip chip-{{ 'info' if s.institution_type.code=='MINSA' else 'success' }}">{{ s.institution_type.code }}</span></td>
+          <td>{{ 'Hospital' if s.sede_type=='hospital' else 'Centro de salud' }}</td>
+          <td>{{ s.city or '—' }}</td>
+          <td>
+            {% if coord_map.get(s.id) %}{{ coord_map[s.id].user.full_name }}
+            {% else %}<span class="chip chip-warning"><i class="bi bi-exclamation-circle"></i> Sin coordinador</span>{% endif %}
+          </td>
+          <td>{% if s.is_active %}<span class="chip chip-success">Activa</span>{% else %}<span class="chip chip-danger">Inactiva</span>{% endif %}</td>
+          <td><a class="btn btn-outline btn-sm" href="/sedes/{{ s.id }}"><i class="bi bi-eye"></i></a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ pagination(page, base_qs) }}
+  {% else %}
+  <div class="empty-state"><div class="es-icon"><i class="bi bi-search"></i></div>
+    <h3>Sin resultados</h3><p>No se encontraron sedes con los filtros aplicados.</p>
+    <a class="btn btn-light" href="/sedes"><i class="bi bi-x-lg"></i> Limpiar filtros</a></div>
+  {% endif %}
+</div>
+{% endblock %}

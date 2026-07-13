@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1>
+  <p>{{ page_subtitle }}</p>
+</div>
+
+<div class="grid cols-2">
+  <div class="card">
+    <div class="card-head"><h3><i class="bi bi-person"></i> Datos de la cuenta</h3></div>
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:18px">
+      <div class="avatar" style="width:64px;height:64px;font-size:26px">{{ identity.full_name[:1]|upper }}</div>
+      <div>
+        <div style="font-size:19px;font-weight:700;color:var(--navy)">{{ identity.full_name }}</div>
+        <span class="chip chip-info">{{ identity.role_name }}</span>
+      </div>
+    </div>
+    <div class="list-def">
+      <dt>Correo</dt><dd>{{ identity.email }}</dd>
+      <dt>Rol</dt><dd>{{ identity.role_name }}</dd>
+      <dt>ID de usuario</dt><dd>#{{ identity.user_id }}</dd>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head"><h3><i class="bi bi-shield-lock"></i> Seguridad</h3></div>
+    <p style="color:var(--text-muted)">
+      La gestión de contraseña y preferencias de seguridad se habilitará en una fase posterior.
+      Este es un entorno de demostración con cuentas semilla.
+    </p>
+    <a href="/logout" class="btn btn-outline"><i class="bi bi-box-arrow-right"></i> Cerrar sesión</a>
+  </div>
+</div>
+{% endblock %}

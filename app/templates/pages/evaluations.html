@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1>
+  <p>{{ page_subtitle }}</p>
+</div>
+
+<div class="card" style="margin-bottom:18px">
+  <div class="card-head"><h3><i class="bi bi-clipboard-data"></i> Instrumento oficial</h3></div>
+  <p style="margin:0 0 8px;color:var(--text-muted)">
+    Tres áreas evaluadas — <strong>Conocimientos</strong>, <strong>Desempeño</strong> y
+    <strong>Actitudinal</strong> — con 5 criterios cada una. Escala 0–4:
+  </p>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <span class="chip chip-success">4 · Muy satisfactorio</span>
+    <span class="chip chip-info">3 · Satisfactorio</span>
+    <span class="chip chip-muted">2 · Casi satisfactorio</span>
+    <span class="chip chip-warning">1 · Poco satisfactorio</span>
+    <span class="chip chip-danger">0 · Inaceptable</span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <h3><i class="bi bi-check2-square"></i> Evaluaciones</h3>
+    <span class="chip chip-info">{{ evaluations | length }}</span>
+  </div>
+  {% if evaluations %}
+  <div class="table-scroll">
+    <table class="data">
+      <thead>
+        <tr><th>Interno</th><th>Conoc.</th><th>Desemp.</th><th>Actitud</th><th>Nota final</th><th>Estado</th></tr>
+      </thead>
+      <tbody>
+        {% for e in evaluations %}
+        <tr>
+          <td>{{ e.student.full_name if e.student else '—' }}</td>
+          <td>{{ '%.1f'|format(e.score_knowledge) if e.score_knowledge is not none else '—' }}</td>
+          <td>{{ '%.1f'|format(e.score_performance) if e.score_performance is not none else '—' }}</td>
+          <td>{{ '%.1f'|format(e.score_attitude) if e.score_attitude is not none else '—' }}</td>
+          <td>
+            {% if e.final_score is not none %}
+              <strong>{{ '%.2f'|format(e.final_score) }}</strong>
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            {% set tone = {'approved':'success','submitted':'info','in_progress':'warning','pending':'muted'} %}
+            <span class="chip chip-{{ tone.get(e.status,'muted') }}">{{ e.status }}</span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state"><div class="es-icon"><i class="bi bi-inbox"></i></div><p>No hay evaluaciones.</p></div>
+  {% endif %}
+</div>
+{% endblock %}

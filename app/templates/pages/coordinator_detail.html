@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import csrf_field %}
+{% block title %}{{ coord.user.full_name }}{% endblock %}
+
+{% block content %}
+<nav class="result-count" style="margin-bottom:8px"><a href="/coordinators">Coordinadores</a> / {{ coord.user.full_name }}</nav>
+<div class="detail-head">
+  <div class="page-head" style="margin:0">
+    <h1><i class="bi bi-person-badge"></i> {{ coord.user.full_name }}</h1>
+    <p>{{ sede.short_name if sede else 'Sin sede' }} ·
+      {% if coord.is_principal %}<span class="chip chip-info">Principal</span>{% endif %}
+      {% if coord.is_active %}<span class="chip chip-success">Activo</span>{% else %}<span class="chip chip-danger">Inactivo</span>{% endif %}</p>
+  </div>
+  <div class="actions">
+    {% if can_manage %}
+    <a class="btn btn-outline" href="/coordinators/{{ coord.id }}/edit"><i class="bi bi-pencil"></i> Editar</a>
+    <form method="post" action="/coordinators/{{ coord.id }}/toggle" style="display:inline">
+      {{ csrf_field(csrf_token) }}<input type="hidden" name="active" value="{{ '0' if coord.is_active else '1' }}" />
+      <button class="btn btn-outline" type="submit" onclick="return confirm('¿Confirma cambiar el estado?')">
+        <i class="bi bi-power"></i> {{ 'Desactivar' if coord.is_active else 'Activar' }}</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="grid cols-2">
+  <div class="card">
+    <div class="card-head"><h3><i class="bi bi-person-vcard"></i> Perfil</h3></div>
+    <div class="meta-grid">
+      <div class="m-item"><div class="m-label">Correo</div><div class="m-value">{{ coord.user.email }}</div></div>
+      <div class="m-item"><div class="m-label">Teléfono</div><div class="m-value">{{ coord.user.phone or '—' }}</div></div>
+      <div class="m-item"><div class="m-label">Especialidad</div><div class="m-value">{{ coord.specialty or '—' }}</div></div>
+      <div class="m-item"><div class="m-label">Tel. oficina</div><div class="m-value">{{ coord.office_phone or '—' }}</div></div>
+      <div class="m-item"><div class="m-label">Sede</div><div class="m-value">{% if sede %}<a href="/sedes/{{ sede.id }}">{{ sede.short_name or sede.name }}</a>{% else %}—{% endif %}</div></div>
+    </div>
+  </div>
+  <div style="display:grid;gap:18px;align-content:start">
+    <div class="card"><div class="card-head"><h3><i class="bi bi-people"></i> Tutores de la sede</h3><span class="chip chip-info">{{ tutors|length }}</span></div>
+      {% if tutors %}<table class="data"><tbody>{% for t in tutors %}<tr><td>{{ t.user.full_name }}</td><td>{{ t.service or '—' }}</td>
+        <td><a class="btn btn-outline btn-sm" href="/tutors/{{ t.id }}"><i class="bi bi-eye"></i></a></td></tr>{% endfor %}</tbody></table>
+      {% else %}<p style="color:var(--text-muted)">Sin tutores.</p>{% endif %}
+    </div>
+    <div class="card"><div class="card-head"><h3><i class="bi bi-clipboard-data"></i> Resumen de sede</h3></div>
+      <div class="meta-grid">
+        <div class="m-item"><div class="m-label">Internos</div><div class="m-value">{{ students|length }}</div></div>
+        <div class="m-item"><div class="m-label">Rotaciones activas</div><div class="m-value">{{ active_rotations|length }}</div></div>
+        <div class="m-item"><div class="m-label">Evaluaciones pendientes</div><div class="m-value">{{ pending_eval_count }}</div></div>
+        <div class="m-item"><div class="m-label">Alertas</div><div class="m-value">{{ alerts|length }}</div></div>
+      </div>
+    </div>
+    <div class="card"><div class="card-head"><h3><i class="bi bi-shield-check"></i> Auditoría reciente</h3></div>
+      {% if audit_rows %}<table class="data"><tbody>{% for r in audit_rows %}<tr>
+        <td style="white-space:nowrap">{{ r.created_at.strftime('%d/%m %H:%M') }}</td>
+        <td><span class="chip chip-muted">{{ r.action }}</span></td><td>{{ r.actor_label }}</td></tr>{% endfor %}</tbody></table>
+      {% else %}<p style="color:var(--text-muted)">Sin registros.</p>{% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

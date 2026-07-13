@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import csrf_field %}
+{% block title %}{{ entry.definition.name }}{% endblock %}
+
+{% block content %}
+<nav class="result-count" style="margin-bottom:8px">
+  <a href="/rotations/{{ entry.assignment_id }}">Rotación</a> / Actividad
+</nav>
+<div class="detail-head">
+  <div class="page-head" style="margin:0">
+    <h1><i class="bi bi-journal-check"></i> {{ entry.definition.name }}</h1>
+    <p>{{ entry.student.full_name if entry.student else '' }} ·
+      <span class="chip chip-{{ {'pending':'warning','verified':'success','rejected':'danger','cancelled':'muted'}.get(entry.verification_status,'muted') }}">{{ entry.verification_status }}</span></p>
+  </div>
+  <div class="actions">
+    {% if can_edit %}<a class="btn btn-outline" href="/activities/entries/{{ entry.id }}/edit"><i class="bi bi-pencil"></i> Editar</a>{% endif %}
+    {% if can_cancel %}
+    <form method="post" action="/activities/entries/{{ entry.id }}/cancel" style="display:inline">
+      {{ csrf_field(csrf_token) }}
+      <button class="btn btn-outline" type="submit" onclick="return confirm('¿Cancelar este registro?')"><i class="bi bi-x-circle"></i> Cancelar</button>
+    </form>
+    {% endif %}
+    {% if can_review and entry.verification_status=='pending' %}
+    <form method="post" action="/activities/entries/{{ entry.id }}/verify" style="display:inline">
+      {{ csrf_field(csrf_token) }}
+      <button class="btn btn-primary" type="submit" onclick="return confirm('¿Verificar esta actividad?')"><i class="bi bi-check2"></i> Verificar</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if can_review and entry.verification_status=='pending' %}
+<div class="card" style="border-left:4px solid var(--danger);margin-bottom:16px">
+  <form method="post" action="/activities/entries/{{ entry.id }}/reject">
+    {{ csrf_field(csrf_token) }}
+    <strong>Rechazar actividad</strong>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <input class="form-control" name="comment" required placeholder="Comentario obligatorio" />
+      <button class="btn btn-primary" style="background:var(--danger)" type="submit">Rechazar</button>
+    </div>
+  </form>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="meta-grid">
+    <div class="m-item"><div class="m-label">Fecha</div><div class="m-value">{{ entry.logged_on.strftime('%d/%m/%Y') if entry.logged_on else '—' }}</div></div>
+    <div class="m-item"><div class="m-label">Cantidad</div><div class="m-value">{{ entry.performed_count }}</div></div>
+    <div class="m-item"><div class="m-label">Meta</div><div class="m-value">
+      {% if entry.definition.target_type=='fixed' %}{{ entry.definition.target_count }} {{ entry.definition.unit_label or '' }}
+      {% elif entry.definition.target_type=='no_fixed_target' %}Sin meta numérica — realizar el mayor número posible
+      {% else %}Cumplimiento{% endif %}</div></div>
+    <div class="m-item"><div class="m-label">Referencia anónima</div><div class="m-value">{{ entry.evidence_reference or '—' }}</div></div>
+  </div>
+  {% if entry.notes %}<p style="margin-top:12px"><strong>Notas:</strong> {{ entry.notes }}</p>{% endif %}
+</div>
+
+<div class="card" style="margin-top:16px">
+  <div class="card-head"><h3><i class="bi bi-clock-history"></i> Historial de revisión</h3></div>
+  {% if entry.reviews %}
+  <div class="timeline">
+    {% for r in entry.reviews %}
+    <div class="tl-item {{ 'done' if r.action=='verified' else '' }}">
+      <div class="tl-title">
+        <span class="chip chip-{{ {'verified':'success','rejected':'danger','reopened':'warning','corrected':'info'}.get(r.action,'muted') }}">{{ r.action }}</span>
+      </div>
+      <div class="tl-meta">{{ r.created_at.strftime('%d/%m/%Y %H:%M') }}{% if r.comment %} — {{ r.comment }}{% endif %}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}<p style="color:var(--text-muted)">Sin revisiones registradas.</p>{% endif %}
+</div>
+{% endblock %}

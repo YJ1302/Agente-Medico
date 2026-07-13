@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import csrf_field %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<nav class="result-count" style="margin-bottom:8px"><a href="/activities">Catálogo</a> / Importar</nav>
+<div class="page-head"><h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1><p>{{ page_subtitle }}</p></div>
+
+<div class="grid stat-grid" style="margin-bottom:18px">
+  <div class="stat-card tone-primary"><div class="s-icon"><i class="bi bi-collection"></i></div><div><div class="s-value">{{ total }}</div><div class="s-label">Total en catálogo oficial</div></div></div>
+  <div class="stat-card tone-info"><div class="s-icon"><i class="bi bi-plus-circle"></i></div><div><div class="s-value">{{ new_items|length }}</div><div class="s-label">Nuevas (por importar)</div></div></div>
+  <div class="stat-card tone-secondary"><div class="s-icon"><i class="bi bi-check2"></i></div><div><div class="s-value">{{ present_items|length }}</div><div class="s-label">Ya presentes</div></div></div>
+</div>
+
+{% if can_confirm and new_items %}
+<div class="card" style="border-left:4px solid var(--success);margin-bottom:16px">
+  <form method="post" action="/activities/import/confirm">
+    {{ csrf_field(csrf_token) }}
+    <strong>Confirmar importación</strong> — se crearán {{ new_items|length }} definición(es) nueva(s) por código único. No se duplican ni sobrescriben las existentes.
+    <div style="margin-top:10px"><button class="btn btn-primary" type="submit"><i class="bi bi-cloud-download"></i> Confirmar importación</button></div>
+  </form>
+</div>
+{% elif not new_items %}
+<div class="alert alert-info"><i class="bi bi-check-circle"></i> El catálogo ya está sincronizado; no hay definiciones nuevas por importar.</div>
+{% endif %}
+
+{% if new_items %}
+<div class="card">
+  <div class="card-head"><h3><i class="bi bi-plus-circle"></i> Definiciones nuevas</h3></div>
+  <div class="table-scroll"><table class="data">
+    <thead><tr><th>Código</th><th>Nombre</th><th>Rotación</th><th>Meta</th><th>Fuente</th></tr></thead>
+    <tbody>{% for it in new_items %}
+      <tr><td><code>{{ it.code }}</code></td><td>{{ it.name }}</td>
+        <td>{{ it.rotation_code or 'Común' }}</td>
+        <td>{% if it.target_type=='fixed' %}{{ it.target_count }}{% elif it.target_type=='no_fixed_target' %}NA{% else %}—{% endif %}</td>
+        <td>{{ it.source_document or '—' }} {% if it.is_provisional %}<span class="chip chip-warning">provisional</span>{% endif %}</td></tr>
+    {% endfor %}</tbody>
+  </table></div>
+</div>
+{% endif %}
+{% endblock %}

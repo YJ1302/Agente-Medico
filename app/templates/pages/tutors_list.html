@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import pagination %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="detail-head">
+  <div class="page-head" style="margin:0"><h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1><p>{{ page_subtitle }}</p></div>
+  {% if can_manage %}<a class="btn btn-primary" href="/tutors/new"><i class="bi bi-plus-lg"></i> Nuevo tutor</a>{% endif %}
+</div>
+
+{% include "partials/staff_tabs.html" %}
+
+<div class="card">
+  <form method="get" action="/tutors" class="filter-bar">
+    <div class="filter-item"><label for="q">Buscar</label>
+      <input class="form-control search-input" type="search" id="q" name="q" value="{{ filters.q }}" placeholder="Nombre o correo" /></div>
+    <div class="filter-item"><label for="sede">Sede</label>
+      <select class="form-control" id="sede" name="sede"><option value="">Todas</option>
+        {% for val, text in options.sedes %}<option value="{{ val }}" {% if filters.sede==(val|string) %}selected{% endif %}>{{ text }}</option>{% endfor %}</select></div>
+    <div class="filter-item"><label for="active">Estado</label>
+      <select class="form-control" id="active" name="active"><option value="">Todos</option>
+        <option value="1" {% if filters.active=='1' %}selected{% endif %}>Activo</option>
+        <option value="0" {% if filters.active=='0' %}selected{% endif %}>Inactivo</option></select></div>
+    <div class="filter-item"><label for="assignments">Asignaciones</label>
+      <select class="form-control" id="assignments" name="assignments"><option value="">Todas</option>
+        <option value="1" {% if filters.assignments=='1' %}selected{% endif %}>Con asignaciones</option>
+        <option value="0" {% if filters.assignments=='0' %}selected{% endif %}>Sin asignaciones</option></select></div>
+    <div class="filter-item"><label for="workload">Carga</label>
+      <select class="form-control" id="workload" name="workload"><option value="">Todas</option>
+        <option value="normal" {% if filters.workload=='normal' %}selected{% endif %}>Normal</option>
+        <option value="near" {% if filters.workload=='near' %}selected{% endif %}>Cerca del umbral</option>
+        <option value="above" {% if filters.workload=='above' %}selected{% endif %}>Sobre el umbral</option></select></div>
+    <button class="btn btn-primary btn-sm" type="submit"><i class="bi bi-search"></i> Filtrar</button>
+    <a class="btn btn-outline btn-sm" href="/tutors"><i class="bi bi-x-lg"></i> Limpiar</a>
+  </form>
+  <div class="result-count" style="margin-bottom:10px">{{ page.total }} resultado(s){% if page.total %} · {{ page.start_index }}–{{ page.end_index }}{% endif %}</div>
+
+  {% if page.items %}
+  <div class="table-scroll"><table class="data">
+    <thead><tr><th>Tutor</th><th>Sede</th><th>Servicio</th><th>Carga</th><th>Estado</th><th></th></tr></thead>
+    <tbody>{% for t, wl in page.items %}
+      <tr><td>{{ t.user.full_name }}<br><small style="color:var(--text-muted)">{{ t.user.email }}</small></td>
+      <td>{{ t.sede.short_name if t.sede else '—' }}</td><td>{{ t.service or '—' }}</td>
+      <td><span class="chip chip-{{ 'success' if wl.level=='normal' else ('warning' if wl.level=='near' else 'danger') }}">{{ wl.count }} · {{ wl.label }}</span></td>
+      <td>{% if t.is_active %}<span class="chip chip-success">Activo</span>{% else %}<span class="chip chip-danger">Inactivo</span>{% endif %}</td>
+      <td><a class="btn btn-outline btn-sm" href="/tutors/{{ t.id }}"><i class="bi bi-eye"></i></a></td></tr>
+    {% endfor %}</tbody>
+  </table></div>
+  {{ pagination(page, base_qs) }}
+  {% else %}
+  <div class="empty-state"><div class="es-icon"><i class="bi bi-search"></i></div><h3>Sin resultados</h3>
+    <p>No se encontraron tutores.</p><a class="btn btn-light" href="/tutors"><i class="bi bi-x-lg"></i> Limpiar</a></div>
+  {% endif %}
+</div>
+{% endblock %}

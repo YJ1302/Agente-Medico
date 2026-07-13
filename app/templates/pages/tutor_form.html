@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import csrf_field, field, select_field, error_summary %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<nav class="result-count" style="margin-bottom:8px"><a href="/tutors">Tutores</a> / {{ 'Nuevo' if mode=='create' else 'Editar' }}</nav>
+<div class="page-head"><h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1><p>{{ page_subtitle }}</p></div>
+
+<div class="card" style="max-width:760px">
+  {{ error_summary(errors) }}
+  {% if limited %}<div class="alert alert-info"><i class="bi bi-info-circle"></i>
+    Como coordinador de sede, solo puede actualizar los datos operativos de contacto y servicio del tutor.</div>{% endif %}
+  <form method="post" action="{% if mode=='create' %}/tutors/new{% else %}/tutors/{{ tutor_id }}/edit{% endif %}" novalidate>
+    {{ csrf_field(csrf_token) }}
+    <div class="form-grid">
+      {{ field("full_name", "Nombre completo", form.get("full_name"), required=True, errors=errors, attrs=('disabled' if limited else '')) }}
+      {{ field("email", "Correo institucional", form.get("email"), type="email", required=True, errors=errors, attrs=('disabled' if limited else '')) }}
+      {{ field("phone", "Teléfono", form.get("phone"), errors=errors, attrs=('disabled' if limited else '')) }}
+      {{ field("specialty", "Especialidad", form.get("specialty"), errors=errors, attrs=('disabled' if limited else '')) }}
+      {{ field("service", "Servicio clínico", form.get("service"), errors=errors) }}
+      {{ field("contact_phone", "Teléfono de contacto", form.get("contact_phone"), errors=errors) }}
+      {% if not limited %}
+      {{ select_field("sede_id", "Sede asignada", options.sedes, form.get("sede_id"), required=True, errors=errors, empty_label="Seleccione…") }}
+      {% endif %}
+      {% if mode=='create' %}
+      {{ field("password", "Contraseña (opcional)", "", type="password", errors=errors, help="Si se deja vacía, se genera una contraseña temporal.") }}
+      {% endif %}
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit"><i class="bi bi-check-lg"></i> Guardar</button>
+      <a class="btn btn-outline" href="{% if mode=='edit' %}/tutors/{{ tutor_id }}{% else %}/tutors{% endif %}">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import csrf_field %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="page-head"><h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1><p>{{ page_subtitle }}</p></div>
+
+<div class="card">
+  <div class="result-count" style="margin-bottom:10px">{{ entries|length }} pendiente(s)</div>
+  {% if entries %}
+  <form method="post" action="/activities/verify/bulk">
+    {{ csrf_field(csrf_token) }}
+    <div class="table-scroll"><table class="data">
+      <thead><tr><th><input type="checkbox" onclick="document.querySelectorAll('.bv').forEach(c=>c.checked=this.checked)" /></th>
+        <th>Interno</th><th>Rotación</th><th>Sede</th><th>Actividad</th><th>Fecha</th><th>Cant.</th><th>Antigüedad</th><th></th></tr></thead>
+      <tbody>{% for e in entries %}
+        <tr>
+          <td><input class="bv" type="checkbox" name="activity_ids" value="{{ e.id }}" /></td>
+          <td>{{ e.student.full_name if e.student else '—' }}</td>
+          <td>{{ e.assignment.rotation_type.name if e.assignment and e.assignment.rotation_type else '—' }}</td>
+          <td>{{ e.assignment.sede.short_name if e.assignment and e.assignment.sede else '—' }}</td>
+          <td>{{ e.definition.name }}</td>
+          <td>{{ e.logged_on.strftime('%d/%m/%Y') if e.logged_on else '—' }}</td>
+          <td>{{ e.performed_count }}</td>
+          <td>{% if e.submitted_at %}{{ e.submitted_at.strftime('%d/%m/%Y') }}{% endif %}</td>
+          <td><a class="btn btn-outline btn-sm" href="/activities/entries/{{ e.id }}"><i class="bi bi-eye"></i></a></td>
+        </tr>
+      {% endfor %}</tbody>
+    </table></div>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit" onclick="return confirm('¿Verificar en lote los registros seleccionados?')">
+        <i class="bi bi-check2-all"></i> Verificar seleccionados</button>
+    </div>
+  </form>
+  {% else %}
+  <div class="empty-state"><div class="es-icon"><i class="bi bi-inbox"></i></div>
+    <p>No hay actividades pendientes de verificación.</p></div>
+  {% endif %}
+</div>
+{% endblock %}

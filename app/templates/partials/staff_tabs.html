@@ -1,0 +1,7 @@
+{# Shared header tabs linking the two staff modules. Pass active_tab. #}
+<div class="tabs">
+  <a class="tab {% if active_tab=='coordinators' %}active{% endif %}" href="/coordinators">
+    <i class="bi bi-person-badge"></i> Coordinadores de Sede</a>
+  <a class="tab {% if active_tab=='tutors' %}active{% endif %}" href="/tutors">
+    <i class="bi bi-people"></i> Tutores</a>
+</div>

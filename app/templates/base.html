@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}{{ page_title or "Panel" }}{% endblock %} · {{ app_name }}</title>
+  <!-- Bootstrap Icons served locally — no external CDN, fully offline -->
+  <link rel="stylesheet" href="/static/vendor/css/bootstrap-icons.css" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+  {% block head_extra %}{% endblock %}
+</head>
+<body>
+  {% if identity %}
+  <div class="app">
+    <div class="backdrop" id="backdrop"></div>
+    {% include "partials/sidebar.html" %}
+    <div class="main">
+      {% include "partials/topbar.html" %}
+      <div class="content">
+        {% if flashes %}
+        <div class="flash-stack">
+          {% for f in flashes %}
+          <div class="flash flash-{{ f.category }}">
+            <i class="bi bi-{{ {'success':'check-circle','danger':'x-circle','warning':'exclamation-triangle','info':'info-circle'}.get(f.category,'info-circle') }}"></i>
+            <span>{{ f.message }}</span>
+            <button type="button" class="flash-close" onclick="this.parentElement.remove()" aria-label="Cerrar">&times;</button>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% block content %}{% endblock %}
+      </div>
+    </div>
+  </div>
+  {% else %}
+    {% block content_anon %}{% endblock %}
+  {% endif %}
+
+  <script src="/static/js/app.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

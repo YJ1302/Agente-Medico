@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="page-head"><h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1><p>{{ page_subtitle }}</p></div>
+
+<div class="grid stat-grid" style="margin-bottom:18px">
+  <div class="stat-card tone-danger"><div class="s-icon"><i class="bi bi-graph-down"></i></div><div><div class="s-value">{{ low_progress|length }}</div><div class="s-label">Internos &lt;50% progreso (meta fija)</div></div></div>
+  <div class="stat-card tone-warning"><div class="s-icon"><i class="bi bi-hourglass-split"></i></div><div><div class="s-value">{{ old_pending_students|length }}</div><div class="s-label">Internos con pendientes antiguos</div></div></div>
+  <div class="stat-card tone-secondary"><div class="s-icon"><i class="bi bi-x-circle"></i></div><div><div class="s-value">{{ rejected_students|length }}</div><div class="s-label">Internos con rechazos</div></div></div>
+  <div class="stat-card tone-primary"><div class="s-icon"><i class="bi bi-alarm"></i></div><div><div class="s-value">{{ at_risk_rotations|length }}</div><div class="s-label">Rotaciones en riesgo (meta)</div></div></div>
+</div>
+
+<div class="card" style="margin-bottom:16px">
+  <div class="card-head"><h3><i class="bi bi-graph-down"></i> Progreso bajo (menos de 50% en metas fijas)</h3></div>
+  {% if low_progress %}
+  <table class="data"><thead><tr><th>Interno</th><th>Rotación</th><th>Sede</th><th>Progreso promedio</th></tr></thead>
+    <tbody>{% for row in low_progress %}<tr>
+      <td>{{ row.assignment.student.full_name if row.assignment.student else '—' }}</td>
+      <td>{{ row.assignment.rotation_type.name if row.assignment.rotation_type else '—' }}</td>
+      <td>{{ row.assignment.sede.short_name if row.assignment.sede else '—' }}</td>
+      <td><span class="chip chip-danger">{{ row.ratio }}%</span></td>
+    </tr>{% endfor %}</tbody></table>
+  {% else %}<p style="color:var(--text-muted)">Sin casos.</p>{% endif %}
+</div>
+
+<div class="card" style="margin-bottom:16px">
+  <div class="card-head"><h3><i class="bi bi-alarm"></i> Rotaciones por finalizar con meta en riesgo</h3></div>
+  {% if at_risk_rotations %}
+  <table class="data"><thead><tr><th>Interno</th><th>Rotación</th><th>Termina</th><th>Progreso</th></tr></thead>
+    <tbody>{% for row in at_risk_rotations %}<tr>
+      <td>{{ row.assignment.student.full_name if row.assignment.student else '—' }}</td>
+      <td>{{ row.assignment.rotation_type.name if row.assignment.rotation_type else '—' }}</td>
+      <td>{{ row.assignment.end_date.strftime('%d/%m/%Y') if row.assignment.end_date else '—' }}</td>
+      <td><span class="chip chip-warning">{{ row.ratio }}%</span></td>
+    </tr>{% endfor %}</tbody></table>
+  {% else %}<p style="color:var(--text-muted)">Sin casos.</p>{% endif %}
+</div>
+
+<div class="card" style="margin-bottom:16px">
+  <div class="card-head"><h3><i class="bi bi-person-lines-fill"></i> Tutores con cola de verificación elevada</h3></div>
+  {% if backlog_tutors %}
+  <table class="data"><thead><tr><th>Tutor</th><th>Pendientes antiguos</th></tr></thead>
+    <tbody>{% for row in backlog_tutors %}<tr>
+      <td>{{ row.tutor.user.full_name if row.tutor else '—' }}</td>
+      <td><span class="chip chip-danger">{{ row.count }}</span></td>
+    </tr>{% endfor %}</tbody></table>
+  {% else %}<p style="color:var(--text-muted)">Sin casos.</p>{% endif %}
+</div>
+{% endblock %}

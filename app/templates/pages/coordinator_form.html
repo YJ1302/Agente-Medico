@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import csrf_field, field, select_field, error_summary %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<nav class="result-count" style="margin-bottom:8px"><a href="/coordinators">Coordinadores</a> / {{ 'Nuevo' if mode=='create' else 'Editar' }}</nav>
+<div class="page-head"><h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1><p>{{ page_subtitle }}</p></div>
+
+<div class="card" style="max-width:760px">
+  {{ error_summary(errors) }}
+  <form method="post" action="{% if mode=='create' %}/coordinators/new{% else %}/coordinators/{{ coord_id }}/edit{% endif %}" novalidate>
+    {{ csrf_field(csrf_token) }}
+    <div class="form-grid">
+      {{ field("full_name", "Nombre completo", form.get("full_name"), required=True, errors=errors) }}
+      {{ field("email", "Correo institucional", form.get("email"), type="email", required=True, errors=errors) }}
+      {{ field("phone", "Teléfono", form.get("phone"), errors=errors) }}
+      {{ field("specialty", "Especialidad", form.get("specialty"), errors=errors) }}
+      {{ field("office_phone", "Teléfono de oficina", form.get("office_phone"), errors=errors) }}
+      {{ select_field("sede_id", "Sede asignada", options.sedes, form.get("sede_id"), required=True, errors=errors, empty_label="Seleccione…") }}
+      {% if mode=='create' %}
+      {{ field("password", "Contraseña (opcional)", "", type="password", errors=errors, help="Si se deja vacía, se genera una contraseña temporal.") }}
+      {% endif %}
+    </div>
+    <div class="form-group full">
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px">
+        <input type="checkbox" name="replace" value="1" {% if form.get('replace')=='1' %}checked{% endif %} />
+        Reemplazar al coordinador principal actual de la sede (si existe)
+      </label>
+      <small class="form-help">La sede solo admite un coordinador principal activo. Al reemplazar, el anterior se desactiva y queda registrado en auditoría.</small>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit"><i class="bi bi-check-lg"></i> Guardar</button>
+      <a class="btn btn-outline" href="{% if mode=='edit' %}/coordinators/{{ coord_id }}{% else %}/coordinators{% endif %}">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

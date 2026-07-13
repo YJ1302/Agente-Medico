@@ -1,0 +1,44 @@
+{# Conflict validation panel. Pass `conflicts` = list of dicts (Conflict.to_dict). #}
+{% macro conflict_panel(conflicts, needs_confirmation=False) %}
+{% if conflicts %}
+<div class="card conflict-panel" style="margin-bottom:16px;border-left:4px solid var(--warning)">
+  <div class="card-head"><h3><i class="bi bi-shield-exclamation"></i> Validación de asignación</h3></div>
+  {% set blocking = conflicts | selectattr('blocking') | list %}
+  {% set warns = conflicts | rejectattr('blocking') | list %}
+  {% if blocking %}
+  <div style="margin-bottom:10px">
+    <strong style="color:var(--danger)">Conflictos que impiden guardar</strong>
+    {% for c in blocking %}
+    <div class="conflict-row">
+      <span class="chip chip-danger">{{ c.code }}</span>
+      <div><div class="a-title">{{ c.title }}</div><div class="a-msg">{{ c.message }}</div></div>
+      {% if c.can_override %}<span class="chip chip-warning" title="Solo administrador con motivo">Anulable</span>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% if warns %}
+  <div>
+    <strong style="color:var(--warning)">Advertencias</strong>
+    {% for c in warns %}
+    <div class="conflict-row">
+      <span class="chip chip-warning">{{ c.code }}</span>
+      <div><div class="a-title">{{ c.title }}</div><div class="a-msg">{{ c.message }}</div></div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% if conflicts | selectattr('can_override') | list %}
+  <div class="form-group" style="margin-top:12px">
+    <label class="form-label" for="f_override_reason">Motivo de anulación (solo administrador)</label>
+    <input class="form-control" id="f_override_reason" name="override_reason"
+           placeholder="Justifique la anulación del conflicto bloqueante" />
+  </div>
+  {% endif %}
+  {% if needs_confirmation %}
+  <p style="margin-top:10px;color:var(--warning)"><i class="bi bi-exclamation-triangle"></i>
+    Existen advertencias. Marque «confirmar» para continuar.</p>
+  {% endif %}
+</div>
+{% endif %}
+{% endmacro %}

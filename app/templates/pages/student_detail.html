@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import csrf_field %}
+{% block title %}{{ student.full_name }}{% endblock %}
+
+{% block content %}
+<div class="detail-head">
+  <div class="page-head" style="margin:0">
+    <h1><i class="bi bi-mortarboard"></i> {{ student.full_name }}</h1>
+    <p>
+      <code>{{ student.student_code }}</code> ·
+      <span class="chip chip-muted">Ciclo {{ student.cycle }}</span>
+      {% if student.is_active %}<span class="chip chip-success">Activo</span>
+      {% else %}<span class="chip chip-danger">Inactivo</span>{% endif %}
+    </p>
+  </div>
+  <div class="actions">
+    {% if can_edit %}
+    <a class="btn btn-outline" href="/students/{{ student.id }}/edit"><i class="bi bi-pencil"></i> Editar</a>
+    <form method="post" action="/students/{{ student.id }}/toggle" style="display:inline">
+      {{ csrf_field(csrf_token) }}
+      <input type="hidden" name="active" value="{{ '0' if student.is_active else '1' }}" />
+      <button class="btn btn-outline" type="submit"
+              onclick="return confirm('¿Confirma cambiar el estado del interno?')">
+        <i class="bi bi-power"></i> {{ 'Desactivar' if student.is_active else 'Activar' }}
+      </button>
+    </form>
+    {% endif %}
+    {% if can_delete %}
+    <button class="btn btn-outline no-print" style="color:var(--danger)"
+            onclick="document.getElementById('delBox').style.display='block'">
+      <i class="bi bi-trash"></i> Eliminar
+    </button>
+    {% endif %}
+  </div>
+</div>
+
+{% if can_delete %}
+<div class="card" id="delBox" style="display:none;border-left:4px solid var(--danger);margin-bottom:18px">
+  <form method="post" action="/students/{{ student.id }}/delete">
+    {{ csrf_field(csrf_token) }}
+    <label class="form-label" for="delreason">Motivo de la eliminación (obligatorio)</label>
+    <div style="display:flex;gap:8px">
+      <input class="form-control" id="delreason" name="reason" required
+             placeholder="Motivo de la baja lógica" />
+      <button class="btn btn-primary" style="background:var(--danger)" type="submit"
+              onclick="return confirm('Esta acción da de baja al interno. ¿Continuar?')">Confirmar</button>
+    </div>
+  </form>
+</div>
+{% endif %}
+
+<div class="grid cols-2">
+  <div style="display:grid;gap:18px;align-content:start">
+    <div class="card">
+      <div class="card-head"><h3><i class="bi bi-person-vcard"></i> Datos generales</h3></div>
+      <div class="meta-grid">
+        <div class="m-item"><div class="m-label">Documento</div><div class="m-value">{{ student.document_id or '—' }}</div></div>
+        <div class="m-item"><div class="m-label">Correo</div><div class="m-value">{{ student.email or '—' }}</div></div>
+        <div class="m-item"><div class="m-label">Teléfono</div><div class="m-value">{{ student.phone or '—' }}</div></div>
+        <div class="m-item"><div class="m-label">Institución</div><div class="m-value">{{ student.institution_type.code if student.institution_type else '—' }}</div></div>
+        <div class="m-item"><div class="m-label">Sede</div><div class="m-value">{{ student.sede.short_name if student.sede else '—' }}</div></div>
+        <div class="m-item"><div class="m-label">Perfil</div><div class="m-value">
+          {% if student.profile_status=='complete' %}<span class="chip chip-success">Completo</span>
+          {% else %}<span class="chip chip-warning">Incompleto</span>{% endif %}</div></div>
+        <div class="m-item"><div class="m-label">Inicio</div><div class="m-value">{{ student.internship_start.strftime('%d/%m/%Y') if student.internship_start else '—' }}</div></div>
+        <div class="m-item"><div class="m-label">Término</div><div class="m-value">{{ student.internship_end.strftime('%d/%m/%Y') if student.internship_end else '—' }}</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h3><i class="bi bi-diagram-3"></i> Línea de tiempo de rotaciones</h3></div>
+      {% if assignments %}
+      <div class="timeline">
+        {% for a in assignments %}
+        <div class="tl-item {{ 'done' if a.status in ['completed','cancelled'] else ('upcoming' if a.status=='planned' else '') }}">
+          <div class="tl-title">{{ a.rotation_type.name }}
+            <span class="chip chip-{{ {'active':'success','planned':'info','completed':'muted','cancelled':'danger'}.get(a.status,'muted') }}">{{ a.status }}</span>
+          </div>
+          <div class="tl-meta">
+            {{ a.sede.short_name if a.sede else '—' }} · {{ a.period.name if a.period else '' }}
+            {% if a.start_date %} · {{ a.start_date.strftime('%d/%m/%Y') }}{% endif %}
+            {% if a.end_date %}– {{ a.end_date.strftime('%d/%m/%Y') }}{% endif %}
+            · Tutor: {{ a.tutor.user.full_name if a.tutor else 'sin asignar' }}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p style="color:var(--text-muted)">Sin rotaciones registradas.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div style="display:grid;gap:18px;align-content:start">
+    <div class="card">
+      <div class="card-head"><h3><i class="bi bi-clipboard-check"></i> Progreso de actividades</h3></div>
+      <div class="meta-grid">
+        <div class="m-item"><div class="m-label">Verificadas</div><div class="m-value">{{ activity_verified }}</div></div>
+        <div class="m-item"><div class="m-label">Pendientes</div><div class="m-value">{{ activity_pending }}</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3><i class="bi bi-check2-square"></i> Evaluaciones</h3></div>
+      {% if evaluations %}
+        {% for e in evaluations %}
+        <div class="alert-row">
+          <span class="a-dot info"></span>
+          <div>
+            <div class="a-title">{{ e.assignment.rotation_type.name if e.assignment else 'Rotación' }}
+              <span class="chip chip-muted">{{ e.status }}</span></div>
+            <div class="a-msg">{% if e.final_score is not none %}Nota final: <strong>{{ '%.2f'|format(e.final_score) }}</strong>{% else %}Sin calificar{% endif %}</div>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}<p style="color:var(--text-muted)">Sin evaluaciones.</p>{% endif %}
+    </div>
+    <div class="card">
+      <div class="card-head"><h3><i class="bi bi-bell"></i> Alertas relacionadas</h3></div>
+      {% if alerts %}
+        {% for al in alerts %}
+        <div class="alert-row"><span class="a-dot {{ al.severity }}"></span>
+          <div><div class="a-title">{{ al.title }}</div><div class="a-msg">{{ al.message }}</div></div></div>
+        {% endfor %}
+      {% else %}<p style="color:var(--text-muted)">Sin alertas abiertas.</p>{% endif %}
+    </div>
+    <div class="card">
+      <div class="card-head"><h3><i class="bi bi-shield-check"></i> Historial de auditoría</h3></div>
+      {% if audit_rows %}
+      <table class="data"><tbody>
+        {% for r in audit_rows %}
+        <tr><td style="white-space:nowrap">{{ r.created_at.strftime('%d/%m %H:%M') }}</td>
+            <td><span class="chip chip-muted">{{ r.action }}</span></td>
+            <td>{{ r.actor_label }}</td></tr>
+        {% endfor %}
+      </tbody></table>
+      {% else %}<p style="color:var(--text-muted)">Sin registros.</p>{% endif %}
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:16px"><a class="btn btn-outline" href="/students"><i class="bi bi-arrow-left"></i> Volver a la lista</a></div>
+{% endblock %}

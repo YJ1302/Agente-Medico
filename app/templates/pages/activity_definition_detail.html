@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import csrf_field %}
+{% block title %}{{ d.name }}{% endblock %}
+
+{% block content %}
+<nav class="result-count" style="margin-bottom:8px"><a href="/activities">Catálogo</a> / {{ d.name }}</nav>
+<div class="detail-head">
+  <div class="page-head" style="margin:0">
+    <h1><i class="bi bi-clipboard-check"></i> {{ d.name }}</h1>
+    <p><code>{{ d.code }}</code> ·
+      {% if d.is_active %}<span class="chip chip-success">Activa</span>{% else %}<span class="chip chip-danger">Inactiva</span>{% endif %}
+      {% if d.is_provisional %}<span class="chip chip-warning">Provisional</span>{% else %}<span class="chip chip-info">Vigente</span>{% endif %}</p>
+  </div>
+  {% if can_manage %}
+  <div class="actions">
+    <a class="btn btn-outline" href="/activities/{{ d.id }}/edit"><i class="bi bi-pencil"></i> Editar</a>
+    <form method="post" action="/activities/{{ d.id }}/toggle" style="display:inline">
+      {{ csrf_field(csrf_token) }}<input type="hidden" name="active" value="{{ '0' if d.is_active else '1' }}" />
+      <button class="btn btn-outline" type="submit"><i class="bi bi-power"></i> {{ 'Desactivar' if d.is_active else 'Activar' }}</button>
+    </form>
+  </div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <div class="meta-grid">
+    <div class="m-item"><div class="m-label">Rotación</div><div class="m-value">{{ d.rotation_type.name if d.rotation_type else 'Común a todas' }}</div></div>
+    <div class="m-item"><div class="m-label">Categoría</div><div class="m-value">{{ d.category or '—' }}</div></div>
+    <div class="m-item"><div class="m-label">Tipo de meta</div><div class="m-value">
+      {% if d.target_type=='fixed' %}Fija: {{ d.target_count }} {{ d.unit_label or '' }}
+      {% elif d.target_type=='no_fixed_target' %}Sin meta fija (NA — mayor número posible)
+      {% else %}Solo cumplimiento{% endif %}</div></div>
+    <div class="m-item"><div class="m-label">Verificación de tutor</div><div class="m-value">{{ 'Sí' if d.requires_tutor_verification else 'No' }}</div></div>
+    <div class="m-item"><div class="m-label">Supervisión</div><div class="m-value">{{ 'Requerida' if d.supervision_required else 'No requerida' }}</div></div>
+    <div class="m-item"><div class="m-label">Evidencia</div><div class="m-value">{{ d.evidence_policy }}</div></div>
+    <div class="m-item"><div class="m-label">Fuente</div><div class="m-value">{{ d.source_document or '—' }} ({{ d.source_year or '—' }})</div></div>
+    <div class="m-item"><div class="m-label">Sección fuente</div><div class="m-value">{{ d.source_section or '—' }}</div></div>
+  </div>
+  {% if d.description %}<p style="margin-top:14px">{{ d.description }}</p>{% endif %}
+</div>
+{% endblock %}

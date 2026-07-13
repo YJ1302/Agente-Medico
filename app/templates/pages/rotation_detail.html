@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import csrf_field %}
+{% from "partials/conflict_panel.html" import conflict_panel %}
+{% block title %}Rotación{% endblock %}
+
+{% block content %}
+{% set st = a.student %}
+<nav class="result-count" style="margin-bottom:8px"><a href="/rotations">Rotaciones</a> / {{ st.full_name if st else '' }}</nav>
+
+<div class="detail-head">
+  <div class="page-head" style="margin:0">
+    <h1><i class="bi bi-arrow-repeat"></i> {{ a.rotation_type.name if a.rotation_type else 'Rotación' }}</h1>
+    <p>{{ st.full_name if st else '—' }} · {{ a.sede.short_name if a.sede else '—' }} · {{ a.period.name if a.period else '—' }}
+      <span class="chip chip-{{ {'active':'success','planned':'info','completed':'muted','cancelled':'danger'}.get(a.status,'muted') }}">{{ a.status }}</span></p>
+  </div>
+  <div class="actions">
+    {% if can_manage and not locked %}
+      <a class="btn btn-outline" href="/rotations/{{ a.id }}/edit"><i class="bi bi-pencil"></i> Editar</a>
+    {% endif %}
+    {% for target in allowed_targets %}
+      {% if target in ['active','completed'] %}
+      <form method="post" action="/rotations/{{ a.id }}/transition" style="display:inline">
+        {{ csrf_field(csrf_token) }}<input type="hidden" name="target" value="{{ target }}" />
+        <button class="btn btn-primary btn-sm" type="submit"
+          onclick="return confirm('¿Confirma {{ 'activar' if target=='active' else 'completar' }} la rotación?')">
+          <i class="bi bi-{{ 'play' if target=='active' else 'check2-circle' }}"></i>
+          {{ 'Activar' if target=='active' else 'Completar' }}</button>
+      </form>
+      {% endif %}
+    {% endfor %}
+    {% if can_manage and a.status in ['planned','active'] %}
+      <button class="btn btn-outline btn-sm" style="color:var(--danger)"
+        onclick="document.getElementById('cancelBox').style.display='block'"><i class="bi bi-x-circle"></i> Cancelar</button>
+    {% endif %}
+    {% if is_admin and locked %}
+      <button class="btn btn-outline btn-sm" onclick="document.getElementById('reopenBox').style.display='block'">
+        <i class="bi bi-arrow-counterclockwise"></i> Reabrir</button>
+    {% endif %}
+  </div>
+</div>
+
+{% if can_manage and a.status in ['planned','active'] %}
+<div class="card" id="cancelBox" style="display:none;border-left:4px solid var(--danger);margin-bottom:16px">
+  <form method="post" action="/rotations/{{ a.id }}/transition">
+    {{ csrf_field(csrf_token) }}<input type="hidden" name="target" value="cancelled" />
+    <strong>Cancelar rotación</strong>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <input class="form-control" name="reason" required placeholder="Motivo de la cancelación (obligatorio)" />
+      <button class="btn btn-primary" style="background:var(--danger)" type="submit"
+        onclick="return confirm('¿Cancelar la rotación?')">Confirmar</button>
+    </div>
+  </form>
+</div>
+{% endif %}
+{% if is_admin and locked %}
+<div class="card" id="reopenBox" style="display:none;border-left:4px solid var(--warning);margin-bottom:16px">
+  <form method="post" action="/rotations/{{ a.id }}/transition">
+    {{ csrf_field(csrf_token) }}<input type="hidden" name="target" value="{{ 'active' if a.status=='completed' else 'planned' }}" />
+    <strong>Reabrir rotación (solo administrador)</strong>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <input class="form-control" name="reason" required placeholder="Motivo de la reapertura (obligatorio)" />
+      <button class="btn btn-primary" style="background:var(--warning)" type="submit">Reabrir</button>
+    </div>
+  </form>
+</div>
+{% endif %}
+
+{{ conflict_panel(conflicts) }}
+
+<div class="tabs" data-tabs>
+  <div class="tab active" data-tab="resumen">Resumen</div>
+  <div class="tab" data-tab="estudiante">Estudiante</div>
+  <div class="tab" data-tab="tutor">Tutor</div>
+  <div class="tab" data-tab="actividades">Actividades</div>
+  <div class="tab" data-tab="evaluacion">Evaluación</div>
+  <div class="tab" data-tab="alertas">Alertas</div>
+  <div class="tab" data-tab="auditoria">Auditoría</div>
+</div>
+
+<div data-panel="resumen">
+  <div class="card"><div class="card-head"><h3><i class="bi bi-info-circle"></i> Resumen</h3></div>
+    <div class="meta-grid">
+      <div class="m-item"><div class="m-label">Rotación</div><div class="m-value">{{ a.rotation_type.name if a.rotation_type else '—' }}</div></div>
+      <div class="m-item"><div class="m-label">Sede</div><div class="m-value">{{ a.sede.short_name if a.sede else '—' }}</div></div>
+      <div class="m-item"><div class="m-label">Periodo</div><div class="m-value">{{ a.period.name if a.period else '—' }}</div></div>
+      <div class="m-item"><div class="m-label">Inicio</div><div class="m-value">{{ a.start_date.strftime('%d/%m/%Y') if a.start_date else '—' }}</div></div>
+      <div class="m-item"><div class="m-label">Término</div><div class="m-value">{{ a.end_date.strftime('%d/%m/%Y') if a.end_date else '—' }}</div></div>
+      <div class="m-item"><div class="m-label">Duración</div><div class="m-value">{{ duration ~ ' días' if duration is not none else '—' }}</div></div>
+      <div class="m-item"><div class="m-label">Estado</div><div class="m-value">{{ a.status }}</div></div>
+      <div class="m-item"><div class="m-label">Tutor</div><div class="m-value">{{ a.tutor.user.full_name if a.tutor else 'Sin tutor' }}</div></div>
+    </div>
+    {% if a.notes %}<p style="margin-top:12px"><strong>Notas:</strong> {{ a.notes }}</p>{% endif %}
+    {% if a.cancellation_reason %}<p style="color:var(--danger)"><strong>Cancelada:</strong> {{ a.cancellation_reason }}</p>{% endif %}
+    {% if a.reopened_reason %}<p style="color:var(--warning)"><strong>Reabierta:</strong> {{ a.reopened_reason }}</p>{% endif %}
+    {% if a.override_reason %}<p style="color:var(--text-muted)"><strong>Anulación de conflicto:</strong> {{ a.override_reason }}</p>{% endif %}
+  </div>
+</div>
+
+<div data-panel="estudiante" style="display:none">
+  <div class="card"><div class="card-head"><h3><i class="bi bi-mortarboard"></i> Estudiante</h3></div>
+    {% if st %}<div class="meta-grid">
+      <div class="m-item"><div class="m-label">Nombre</div><div class="m-value"><a href="/students/{{ st.id }}">{{ st.full_name }}</a></div></div>
+      <div class="m-item"><div class="m-label">Código</div><div class="m-value">{{ st.student_code }}</div></div>
+      <div class="m-item"><div class="m-label">Ciclo</div><div class="m-value">Ciclo {{ st.cycle }}</div></div>
+      <div class="m-item"><div class="m-label">Institución</div><div class="m-value">{{ st.institution_type.code if st.institution_type else '—' }}</div></div>
+    </div>{% else %}<p style="color:var(--text-muted)">—</p>{% endif %}
+  </div>
+</div>
+
+<div data-panel="tutor" style="display:none">
+  <div class="card"><div class="card-head"><h3><i class="bi bi-person-badge"></i> Tutor</h3></div>
+    {% if a.tutor %}
+    <div class="meta-grid" style="margin-bottom:12px">
+      <div class="m-item"><div class="m-label">Nombre</div><div class="m-value"><a href="/tutors/{{ a.tutor.id }}">{{ a.tutor.user.full_name }}</a></div></div>
+      <div class="m-item"><div class="m-label">Servicio</div><div class="m-value">{{ a.tutor.service or '—' }}</div></div>
+    </div>
+    {% else %}<p style="color:var(--danger)"><i class="bi bi-exclamation-triangle"></i> Rotación sin tutor asignado.</p>{% endif %}
+    {% if can_manage and not locked %}
+    <form method="post" action="/rotations/{{ a.id }}/tutor" style="display:flex;gap:8px;align-items:flex-end;max-width:520px">
+      {{ csrf_field(csrf_token) }}
+      <div class="form-group" style="flex:1;margin:0"><label class="form-label" for="tsel">Asignar / cambiar / quitar tutor</label>
+        <select class="form-control" id="tsel" name="tutor_id">
+          <option value="">— Quitar tutor (genera alerta) —</option>
+          {% for t in available_tutors %}<option value="{{ t.id }}" {% if a.tutor_id==t.id %}selected{% endif %}>{{ t.user.full_name }} · carga vía panel</option>{% endfor %}
+        </select></div>
+      <button class="btn btn-primary" type="submit">Guardar tutor</button>
+    </form>
+    <small class="form-help">Solo tutores activos de la sede de la rotación.</small>
+    {% endif %}
+  </div>
+</div>
+
+<div data-panel="actividades" style="display:none">
+  <div class="grid stat-grid" style="margin-bottom:14px">
+    <div class="stat-card tone-success"><div class="s-icon"><i class="bi bi-check2"></i></div><div><div class="s-value">{{ activity.verified_count }}</div><div class="s-label">Verificadas</div></div></div>
+    <div class="stat-card tone-warning"><div class="s-icon"><i class="bi bi-hourglass-split"></i></div><div><div class="s-value">{{ activity.pending_count }}</div><div class="s-label">Pendientes</div></div></div>
+    <div class="stat-card tone-danger"><div class="s-icon"><i class="bi bi-x-circle"></i></div><div><div class="s-value">{{ activity.rejected_count }}</div><div class="s-label">Rechazadas</div></div></div>
+    <div class="stat-card tone-info"><div class="s-icon"><i class="bi bi-graph-up"></i></div><div><div class="s-value">{{ activity.avg_fixed_percent ~ '%' if activity.avg_fixed_percent is not none else '—' }}</div><div class="s-label">Progreso metas fijas</div></div></div>
+  </div>
+
+  {% if activity.can_log_activity %}
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-head"><h3><i class="bi bi-journal-plus"></i> Registrar actividad</h3></div>
+    <div class="alert alert-danger" style="margin-bottom:12px">
+      <i class="bi bi-shield-exclamation"></i>
+      No registre nombres, documentos, números de historia clínica ni otra información identificable del paciente.
+    </div>
+    <form method="post" action="/rotations/{{ a.id }}/activities/new" class="form-grid">
+      {{ csrf_field(csrf_token) }}
+      <div class="form-group"><label class="form-label" for="qd">Actividad</label>
+        <select class="form-control" id="qd" name="definition_id" required>
+          <option value="">Seleccione…</option>
+          {% for val, text in activity.activity_options.definitions %}<option value="{{ val }}">{{ text }}</option>{% endfor %}
+        </select></div>
+      <div class="form-group"><label class="form-label" for="qdate">Fecha</label>
+        <input class="form-control" id="qdate" type="date" name="logged_on" required /></div>
+      <div class="form-group"><label class="form-label" for="qty">Cantidad</label>
+        <input class="form-control" id="qty" type="number" name="performed_count" value="1" min="1" required /></div>
+      <div class="form-group"><label class="form-label" for="qref">Referencia anónima (opcional)</label>
+        <input class="form-control" id="qref" name="evidence_reference" /></div>
+      <div class="form-group full"><label class="form-label" for="qnotes">Notas</label>
+        <textarea class="form-control" id="qnotes" name="notes"></textarea></div>
+      <div class="form-actions full"><button class="btn btn-primary" type="submit"><i class="bi bi-plus-lg"></i> Registrar</button></div>
+    </form>
+  </div>
+  {% endif %}
+
+  {% if activity.fixed_rows %}
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-head"><h3><i class="bi bi-bullseye"></i> Metas fijas</h3></div>
+    {% for row in activity.fixed_rows %}
+    <div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;font-size:13.5px;margin-bottom:4px">
+        <span>{{ row.definition.name }}</span><span>{{ row.verified_count }} / {{ row.target_count }}</span></div>
+      <div class="progress"><div class="bar {{ 'low' if row.percent_display < 50 else ('warning' if row.percent_display < 100 else '') }}" style="width:{{ row.percent_display }}%"></div></div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if activity.no_fixed_rows %}
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-head"><h3><i class="bi bi-infinity"></i> Sin meta numérica (NA)</h3></div>
+    {% for row in activity.no_fixed_rows %}
+    <div class="alert-row"><span class="a-dot info"></span>
+      <div><div class="a-title">{{ row.definition.name }}</div>
+        <div class="a-msg">{{ row.verified_count }} realizada(s) verificada(s) — Sin meta numérica, realizar el mayor número posible</div></div></div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="card"><div class="card-head"><h3><i class="bi bi-clipboard-check"></i> Registros</h3><span class="chip chip-info">{{ activity.entries|length }}</span></div>
+    {% if activity.entries %}
+    <div class="table-scroll"><table class="data">
+      <thead><tr><th>Actividad</th><th>Fecha</th><th>Cant.</th><th>Estado</th><th></th></tr></thead>
+      <tbody>{% for e in activity.entries %}
+        <tr><td>{{ e.definition.name }}</td><td>{{ e.logged_on.strftime('%d/%m/%Y') if e.logged_on else '—' }}</td>
+        <td>{{ e.performed_count }}</td>
+        <td><span class="chip chip-{{ {'pending':'warning','verified':'success','rejected':'danger','cancelled':'muted'}.get(e.verification_status,'muted') }}">{{ e.verification_status }}</span></td>
+        <td><a class="btn btn-outline btn-sm" href="/activities/entries/{{ e.id }}"><i class="bi bi-eye"></i></a></td></tr>
+      {% endfor %}</tbody>
+    </table></div>
+    {% else %}<p style="color:var(--text-muted)">Sin registros de actividades.</p>{% endif %}
+  </div>
+</div>
+
+<div data-panel="evaluacion" style="display:none">
+  <div class="card"><div class="card-head"><h3><i class="bi bi-check2-square"></i> Evaluación</h3></div>
+    {% if evaluation %}
+    <div class="meta-grid">
+      <div class="m-item"><div class="m-label">Estado</div><div class="m-value"><span class="chip chip-warning">{{ evaluation.status }}</span></div></div>
+      <div class="m-item"><div class="m-label">Criterios</div><div class="m-value">{{ evaluation.criteria|length }} criterios</div></div>
+      <div class="m-item"><div class="m-label">Nota final</div><div class="m-value">{{ '%.2f'|format(evaluation.final_score) if evaluation.final_score is not none else 'Pendiente' }}</div></div>
+    </div>
+    <div style="margin-top:12px"><a class="btn btn-outline btn-sm" href="/evaluations/{{ evaluation.id }}"><i class="bi bi-eye"></i> Ver evaluación</a></div>
+    {% else %}
+    <p style="color:var(--text-muted)">Aún no existe evaluación. Se creará automáticamente al completar la rotación.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div data-panel="alertas" style="display:none">
+  <div class="card"><div class="card-head"><h3><i class="bi bi-bell"></i> Alertas relacionadas</h3></div>
+    {% if alerts %}{% for al in alerts %}<div class="alert-row"><span class="a-dot {{ al.severity }}"></span>
+      <div><div class="a-title">{{ al.title }}</div><div class="a-msg">{{ al.message }}</div></div></div>{% endfor %}
+    {% else %}<p style="color:var(--text-muted)">Sin alertas abiertas.</p>{% endif %}
+  </div>
+</div>
+
+<div data-panel="auditoria" style="display:none">
+  <div class="card"><div class="card-head"><h3><i class="bi bi-shield-check"></i> Auditoría</h3></div>
+    {% if audit_rows %}<table class="data"><tbody>{% for r in audit_rows %}<tr>
+      <td style="white-space:nowrap">{{ r.created_at.strftime('%d/%m %H:%M') }}</td>
+      <td><span class="chip chip-muted">{{ r.action }}</span></td><td>{{ r.actor_label }}</td></tr>{% endfor %}</tbody></table>
+    {% else %}<p style="color:var(--text-muted)">Sin registros.</p>{% endif %}
+  </div>
+</div>
+{% endblock %}

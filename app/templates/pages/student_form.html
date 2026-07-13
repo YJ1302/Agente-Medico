@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import csrf_field, field, select_field, error_summary %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1>
+  <p>{{ page_subtitle }}</p>
+</div>
+
+<div class="card" style="max-width:820px">
+  {{ error_summary(errors) }}
+  <form method="post"
+        action="{% if mode=='create' %}/students/new{% else %}/students/{{ student_id }}/edit{% endif %}"
+        novalidate>
+    {{ csrf_field(csrf_token) }}
+    <div class="form-grid">
+      {{ field("student_code", "Código de interno", form.get("student_code"), required=True, errors=errors, attrs='autofocus' if mode=='create' else '') }}
+      {{ field("full_name", "Nombre completo", form.get("full_name"), required=True, errors=errors) }}
+      {{ field("document_id", "Documento (ficticio)", form.get("document_id"), errors=errors, help="Solo datos ficticios de demostración.") }}
+      {{ field("email", "Correo institucional", form.get("email"), type="email", errors=errors) }}
+      {{ field("phone", "Teléfono", form.get("phone"), errors=errors) }}
+      {{ select_field("cycle", "Ciclo", options.cycles, form.get("cycle"), required=True, errors=errors, empty_label="Seleccione…") }}
+      {{ select_field("institution_type_id", "Institución (MINSA/EsSalud)", options.institutions, form.get("institution_type_id"), errors=errors, empty_label="Seleccione…") }}
+      {{ select_field("sede_id", "Sede asignada", options.sedes, form.get("sede_id"), errors=errors, empty_label="Seleccione…") }}
+      {{ field("internship_start", "Inicio del internado", form.get("internship_start"), type="date", errors=errors) }}
+      {{ field("internship_end", "Término del internado", form.get("internship_end"), type="date", errors=errors, help="Debe ser posterior al inicio (~365 días).") }}
+      {{ select_field("profile_status", "Estado de perfil", options.profile_statuses, form.get("profile_status"), errors=errors) }}
+    </div>
+
+    {# If the server flagged a duration warning, allow saving with a reason. #}
+    {% if errors.get("internship_end") and "motivo" in errors.get("internship_end") %}
+    <div class="form-group full">
+      <label class="form-label" for="f_override_reason">Motivo de la duración atípica</label>
+      <textarea class="form-control" id="f_override_reason" name="override_reason"
+                placeholder="Explique por qué la duración difiere de ~365 días">{{ form.get("override_reason","") }}</textarea>
+    </div>
+    {% endif %}
+
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit"><i class="bi bi-check-lg"></i> Guardar</button>
+      <a class="btn btn-outline" href="{% if mode=='edit' %}/students/{{ student_id }}{% else %}/students{% endif %}">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

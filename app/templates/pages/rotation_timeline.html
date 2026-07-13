@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="page-head"><h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1><p>{{ page_subtitle }}</p></div>
+
+<div class="tabs">
+  <a class="tab {% if group=='student' %}active{% endif %}" href="/rotations/timeline?group=student">Por interno</a>
+  <a class="tab {% if group=='sede' %}active{% endif %}" href="/rotations/timeline?group=sede">Por sede</a>
+  <a class="tab {% if group=='period' %}active{% endif %}" href="/rotations/timeline?group=period">Por periodo</a>
+  <a class="tab {% if group=='rotation' %}active{% endif %}" href="/rotations/timeline?group=rotation">Por rotación</a>
+</div>
+
+{% if groups %}
+{% for gname, items in groups.items() %}
+<div class="card" style="margin-bottom:14px">
+  <div class="card-head"><h3><i class="bi bi-diagram-3"></i> {{ gname }}</h3><span class="chip chip-info">{{ items|length }}</span></div>
+  <div class="tl-rows">
+    {% for a in items %}
+    {% set tone = {'active':'success','planned':'info','completed':'muted','cancelled':'danger'}.get(a.status,'muted') %}
+    <a class="tl-bar tl-{{ tone }}" href="/rotations/{{ a.id }}">
+      <span class="tl-bar-title">{{ a.rotation_type.name if a.rotation_type else '—' }}</span>
+      <span class="tl-bar-meta">
+        {% if group!='student' %}{{ a.student.full_name if a.student else '' }} · {% endif %}
+        {% if group!='sede' %}{{ a.sede.short_name if a.sede else '' }} · {% endif %}
+        {{ a.tutor.user.full_name if a.tutor else 'sin tutor' }}
+        {% if a.start_date %}· {{ a.start_date.strftime('%d/%m') }}{% endif %}{% if a.end_date %}–{{ a.end_date.strftime('%d/%m') }}{% endif %}
+      </span>
+      <span class="chip chip-{{ tone }}">{{ a.status }}</span>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endfor %}
+{% else %}
+<div class="card"><div class="empty-state"><div class="es-icon"><i class="bi bi-calendar3"></i></div>
+  <p>No hay rotaciones para mostrar.</p></div></div>
+{% endif %}
+{% endblock %}

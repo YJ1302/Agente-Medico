@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1>
+  <p>{{ page_subtitle }}</p>
+</div>
+
+<div class="card">
+  <div class="empty-state">
+    <div class="es-icon"><i class="bi bi-{{ page_icon }}"></i></div>
+    <h3>Módulo preparado para la Parte 2</h3>
+    <p>
+      Esta sección forma parte de la arquitectura de la plataforma y su modelo de datos
+      ya está definido. Los flujos operativos completos (registro, edición y reportes)
+      se implementarán en las Partes 2 y 3 del proyecto.
+    </p>
+    <a class="btn btn-light" href="/dashboard"><i class="bi bi-arrow-left"></i> Volver al dashboard</a>
+  </div>
+</div>
+{% endblock %}

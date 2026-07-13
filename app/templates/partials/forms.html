@@ -1,0 +1,66 @@
+{# Reusable form/UI macros. Import with:
+   {% from "partials/forms.html" import csrf_field, field, select_field, pagination %} #}
+
+{% macro csrf_field(token) -%}
+<input type="hidden" name="csrf_token" value="{{ token }}" />
+{%- endmacro %}
+
+{# A labelled text/date/number input with error + preserved value. #}
+{% macro field(name, label, value="", type="text", required=False, errors={}, help="", attrs="") -%}
+<div class="form-group {% if errors.get(name) %}has-error{% endif %}">
+  <label class="form-label" for="f_{{ name }}">
+    {{ label }}{% if required %} <span class="req">*</span>{% endif %}
+  </label>
+  <input class="form-control" id="f_{{ name }}" name="{{ name }}" type="{{ type }}"
+         value="{{ value if value is not none else '' }}"
+         {% if required %}required{% endif %} {{ attrs | safe }} />
+  {% if help %}<small class="form-help">{{ help }}</small>{% endif %}
+  {% if errors.get(name) %}<small class="form-error">{{ errors.get(name) }}</small>{% endif %}
+</div>
+{%- endmacro %}
+
+{# A labelled select. options = list of (value, text). #}
+{% macro select_field(name, label, options, selected="", required=False, errors={}, help="", empty_label="") -%}
+<div class="form-group {% if errors.get(name) %}has-error{% endif %}">
+  <label class="form-label" for="f_{{ name }}">
+    {{ label }}{% if required %} <span class="req">*</span>{% endif %}
+  </label>
+  <select class="form-control" id="f_{{ name }}" name="{{ name }}" {% if required %}required{% endif %}>
+    {% if empty_label %}<option value="">{{ empty_label }}</option>{% endif %}
+    {% for val, text in options %}
+    <option value="{{ val }}" {% if (selected|string) == (val|string) %}selected{% endif %}>{{ text }}</option>
+    {% endfor %}
+  </select>
+  {% if help %}<small class="form-help">{{ help }}</small>{% endif %}
+  {% if errors.get(name) %}<small class="form-error">{{ errors.get(name) }}</small>{% endif %}
+</div>
+{%- endmacro %}
+
+{# Error summary box shown at the top of a form. #}
+{% macro error_summary(errors) -%}
+{% if errors %}
+<div class="alert alert-danger">
+  <strong><i class="bi bi-exclamation-triangle"></i> Corrija los siguientes errores:</strong>
+  <ul style="margin:6px 0 0; padding-left:18px">
+    {% for k, v in errors.items() %}<li>{{ v }}</li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+{%- endmacro %}
+
+{# Pagination control. page is a web.Page instance; base_qs is the querystring
+   without the page param (may be empty or end with '&'). #}
+{% macro pagination(page, base_qs="") -%}
+{% if page.pages > 1 %}
+<nav class="pager" aria-label="Paginación">
+  <a class="pager-btn {% if not page.has_prev %}disabled{% endif %}"
+     href="?{{ base_qs }}page={{ page.page - 1 }}">&laquo;</a>
+  {% for p in page.window() %}
+  <a class="pager-btn {% if p == page.page %}active{% endif %}"
+     href="?{{ base_qs }}page={{ p }}">{{ p }}</a>
+  {% endfor %}
+  <a class="pager-btn {% if not page.has_next %}disabled{% endif %}"
+     href="?{{ base_qs }}page={{ page.page + 1 }}">&raquo;</a>
+</nav>
+{% endif %}
+{%- endmacro %}

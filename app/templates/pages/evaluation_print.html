@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Evaluación · {{ ev.student.full_name if ev.student else '' }}</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <style>
+    body { padding: 30px; background: #fff; }
+    .p-head { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; border-bottom:2px solid var(--navy); padding-bottom:12px; }
+    .p-title { font-size:20px; font-weight:800; color:var(--navy); }
+    .p-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 24px; margin-bottom:18px; font-size:14px; }
+    .p-grid div span { color:var(--text-muted); }
+    table.p-scores { width:100%; border-collapse:collapse; margin-bottom:16px; }
+    table.p-scores th, table.p-scores td { border:1px solid var(--border); padding:6px 8px; font-size:13px; text-align:left; }
+    table.p-scores th { background:#f4f6fb; }
+    .p-total { text-align:right; font-weight:700; }
+    .p-final { font-size:22px; font-weight:800; color:var(--navy); text-align:center; margin:18px 0; padding:12px; border:2px solid var(--navy); border-radius:8px; }
+  </style>
+</head>
+<body>
+  <div class="p-head">
+    <div>
+      <div class="p-title">UPeU Internado 360 — Evaluación de Fin de Rotación</div>
+      <div>Universidad Peruana Unión · Escuela Profesional de Medicina Humana</div>
+    </div>
+    <button class="btn btn-primary no-print" onclick="window.print()">Imprimir</button>
+  </div>
+
+  <div class="p-grid">
+    <div><span>Interno:</span> <strong>{{ ev.student.full_name if ev.student else '—' }}</strong></div>
+    <div><span>Código:</span> <strong>{{ ev.student.student_code if ev.student else '—' }}</strong></div>
+    <div><span>Rotación:</span> <strong>{{ ev.assignment.rotation_type.name if ev.assignment and ev.assignment.rotation_type else '—' }}</strong></div>
+    <div><span>Sede:</span> <strong>{{ ev.assignment.sede.short_name if ev.assignment and ev.assignment.sede else '—' }}</strong></div>
+    <div><span>Tutor:</span> <strong>{{ ev.assignment.tutor.user.full_name if ev.assignment and ev.assignment.tutor else '—' }}</strong></div>
+    <div><span>Periodo:</span> <strong>{{ ev.assignment.period.name if ev.assignment and ev.assignment.period else '—' }}</strong></div>
+    <div><span>Enviada:</span> <strong>{{ ev.submitted_at.strftime('%d/%m/%Y') if ev.submitted_at else '—' }}</strong></div>
+    <div><span>Aprobada:</span> <strong>{{ ev.reviewed_at.strftime('%d/%m/%Y') if ev.reviewed_at else '—' }}</strong></div>
+  </div>
+
+  {% set AREA_LABELS = {'conocimientos':'I. Conocimientos','desempeno':'II. Desempeño','actitudinal':'III. Actitudinal'} %}
+  {% for area, label in AREA_LABELS.items() %}
+  <table class="p-scores">
+    <thead><tr><th colspan="2">{{ label }}</th></tr></thead>
+    <tbody>
+      {% for c in criteria_by_area[area] %}
+      <tr><td>{{ c.description }}</td><td style="width:60px;text-align:center">{{ c.score if c.score is not none else '—' }}</td></tr>
+      {% endfor %}
+      <tr><td class="p-total">Total área (0–20)</td>
+        <td class="p-total">{{ ('%.0f'|format(ev.score_knowledge) if area=='conocimientos' else ('%.0f'|format(ev.score_performance) if area=='desempeno' else '%.0f'|format(ev.score_attitude))) if ev.final_score is not none else '—' }}</td></tr>
+    </tbody>
+  </table>
+  {% endfor %}
+
+  <div class="p-final">Nota final: {{ '%.2f'|format(ev.final_score) if ev.final_score is not none else '—' }} / 20</div>
+
+  {% if ev.comments %}<p><strong>Comentarios del tutor:</strong> {{ ev.comments }}</p>{% endif %}
+  {% if ev.review_comments %}<p><strong>Comentarios del coordinador:</strong> {{ ev.review_comments }}</p>{% endif %}
+
+  <div class="p-grid" style="margin-top:40px">
+    <div>_______________________________<br>Firma del Tutor</div>
+    <div>_______________________________<br>Firma del Coordinador de Sede</div>
+  </div>
+</body>
+</html>

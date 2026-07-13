@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import pagination %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="detail-head">
+  <div class="page-head" style="margin:0">
+    <h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1>
+    <p>{{ page_subtitle }}</p>
+  </div>
+  {% if can_manage %}
+  <a class="btn btn-primary" href="/students/new"><i class="bi bi-person-plus"></i> Nuevo interno</a>
+  {% endif %}
+</div>
+
+<div class="card">
+  <form method="get" action="/students" class="filter-bar">
+    <div class="filter-item">
+      <label for="q">Buscar</label>
+      <input class="form-control search-input" type="search" id="q" name="q"
+             value="{{ filters.q }}" placeholder="Nombre, código, documento o correo" />
+    </div>
+    <div class="filter-item">
+      <label for="cycle">Ciclo</label>
+      <select class="form-control" id="cycle" name="cycle">
+        <option value="">Todos</option>
+        {% for val, text in options.cycles %}
+        <option value="{{ val }}" {% if filters.cycle==val %}selected{% endif %}>{{ text }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-item">
+      <label for="institution">Institución</label>
+      <select class="form-control" id="institution" name="institution">
+        <option value="">Todas</option>
+        {% for val, text in options.institution_codes %}
+        <option value="{{ val }}" {% if filters.institution==val %}selected{% endif %}>{{ text }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-item">
+      <label for="sede">Sede</label>
+      <select class="form-control" id="sede" name="sede">
+        <option value="">Todas</option>
+        {% for val, text in options.sedes %}
+        <option value="{{ val }}" {% if filters.sede==(val|string) %}selected{% endif %}>{{ text }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-item">
+      <label for="profile">Perfil</label>
+      <select class="form-control" id="profile" name="profile">
+        <option value="">Todos</option>
+        <option value="complete" {% if filters.profile=='complete' %}selected{% endif %}>Completo</option>
+        <option value="incomplete" {% if filters.profile=='incomplete' %}selected{% endif %}>Incompleto</option>
+      </select>
+    </div>
+    <div class="filter-item">
+      <label for="active">Estado</label>
+      <select class="form-control" id="active" name="active">
+        <option value="">Todos</option>
+        <option value="1" {% if filters.active=='1' %}selected{% endif %}>Activo</option>
+        <option value="0" {% if filters.active=='0' %}selected{% endif %}>Inactivo</option>
+      </select>
+    </div>
+    <button class="btn btn-primary btn-sm" type="submit"><i class="bi bi-search"></i> Filtrar</button>
+    <a class="btn btn-outline btn-sm" href="/students"><i class="bi bi-x-lg"></i> Limpiar</a>
+  </form>
+
+  <div class="result-count" style="margin-bottom:10px">
+    {{ page.total }} resultado(s)
+    {% if page.total %} · mostrando {{ page.start_index }}–{{ page.end_index }}{% endif %}
+  </div>
+
+  {% if page.items %}
+  <div class="table-scroll">
+    <table class="data">
+      <thead>
+        <tr><th>Código</th><th>Nombre</th><th>Ciclo</th><th>Institución</th><th>Sede</th><th>Perfil</th><th>Estado</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for s in page.items %}
+        <tr>
+          <td><code>{{ s.student_code }}</code></td>
+          <td>{{ s.full_name }}</td>
+          <td><span class="chip chip-muted">Ciclo {{ s.cycle }}</span></td>
+          <td>{{ s.institution_type.code if s.institution_type else '—' }}</td>
+          <td>{{ s.sede.short_name if s.sede else '—' }}</td>
+          <td>
+            {% if s.profile_status == 'complete' %}
+              <span class="chip chip-success">Completo</span>
+            {% else %}<span class="chip chip-warning">Incompleto</span>{% endif %}
+          </td>
+          <td>
+            {% if s.is_active %}<span class="chip chip-success">Activo</span>
+            {% else %}<span class="chip chip-danger">Inactivo</span>{% endif %}
+          </td>
+          <td><a class="btn btn-outline btn-sm" href="/students/{{ s.id }}"><i class="bi bi-eye"></i></a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ pagination(page, base_qs) }}
+  {% else %}
+  <div class="empty-state">
+    <div class="es-icon"><i class="bi bi-search"></i></div>
+    <h3>Sin resultados</h3>
+    <p>No se encontraron internos con los filtros aplicados.</p>
+    <a class="btn btn-light" href="/students"><i class="bi bi-x-lg"></i> Limpiar filtros</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

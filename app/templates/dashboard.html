@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1><i class="bi bi-speedometer2"></i> Dashboard institucional</h1>
+  <p>{{ welcome }}</p>
+</div>
+
+<!-- Current academic period -->
+{% if data.current_period %}
+<div class="period-banner" style="margin-bottom:18px">
+  <div>
+    <div class="pb-label">Periodo académico actual</div>
+    <div class="pb-value">{{ data.current_period.name }}
+      <span class="pb-gold">· {{ data.current_period.code }}</span>
+    </div>
+  </div>
+  <div style="text-align:right">
+    <div class="pb-label">Vigencia</div>
+    <div class="pb-value">{{ data.current_period.start_date.strftime('%d/%m') }} –
+      {{ data.current_period.end_date.strftime('%d/%m/%Y') }}</div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Stat cards -->
+<div class="grid stat-grid" style="margin-bottom:18px">
+  {% for c in data.stat_cards %}
+  <div class="stat-card tone-{{ c.tone }}">
+    <div class="s-icon"><i class="bi bi-{{ c.icon }}"></i></div>
+    <div>
+      <div class="s-value">{{ c.value }}</div>
+      <div class="s-label">{{ c.label }}</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Charts row -->
+<div class="grid cols-2e" style="margin-bottom:18px">
+  <div class="card">
+    <div class="card-head"><h3><i class="bi bi-pie-chart"></i> Distribución de rotaciones</h3></div>
+    <canvas id="rotationChart" height="150"></canvas>
+  </div>
+  <div class="card">
+    <div class="card-head"><h3><i class="bi bi-people"></i> Internos por institución</h3></div>
+    <canvas id="institutionChart" height="150"></canvas>
+  </div>
+</div>
+
+<!-- Main content row -->
+<div class="grid cols-2" style="margin-bottom:18px">
+  <!-- Rotations ending soon -->
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="bi bi-hourglass-split"></i> Rotaciones por finalizar</h3>
+      <span class="sub">Próximos 7 días</span>
+    </div>
+    {% if data.ending_soon %}
+    <div class="table-scroll">
+      <table class="data">
+        <thead><tr><th>Interno</th><th>Rotación</th><th>Sede</th><th>Fin</th></tr></thead>
+        <tbody>
+          {% for a in data.ending_soon %}
+          <tr>
+            <td>{{ a.student.full_name }}</td>
+            <td>{{ a.rotation_type.name }}</td>
+            <td>{{ a.sede.short_name or a.sede.name }}</td>
+            <td><span class="chip chip-warning">{{ a.end_date.strftime('%d/%m/%Y') }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding:26px">
+      <div class="es-icon"><i class="bi bi-check2-circle"></i></div>
+      <p>No hay rotaciones próximas a finalizar.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Recent alerts -->
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="bi bi-bell"></i> Alertas recientes</h3>
+      <a href="/alerts" class="sub">Ver todas</a>
+    </div>
+    {% if data.recent_alerts %}
+      {% for al in data.recent_alerts %}
+      <div class="alert-row">
+        <span class="a-dot {{ al.severity }}"></span>
+        <div>
+          <div class="a-title">{{ al.title }}</div>
+          <div class="a-msg">{{ al.message }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty-state" style="padding:26px">
+        <div class="es-icon"><i class="bi bi-bell-slash"></i></div>
+        <p>Sin alertas abiertas.</p>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Agent activity + quick actions + system status -->
+<div class="grid cols-2">
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="bi bi-robot"></i> Actividad reciente de agentes</h3>
+      <a href="/agents" class="sub">Centro de agentes</a>
+    </div>
+    {% if data.recent_agent_runs %}
+      {% for r in data.recent_agent_runs %}
+      <div class="agent-run">
+        <div class="ar-icon"><i class="bi bi-cpu"></i></div>
+        <div style="flex:1">
+          <div class="ar-name">{{ r.agent_name }}
+            <span class="chip chip-{{ 'success' if r.status in ['success','no_findings'] else 'warning' }}">{{ r.status }}</span>
+          </div>
+          <div class="ar-sum">{{ r.summary }}</div>
+          <time>{{ r.created_at.strftime('%d/%m/%Y %H:%M') }}</time>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty-state" style="padding:26px">
+        <div class="es-icon"><i class="bi bi-robot"></i></div>
+        <p>Aún no se han ejecutado agentes. Vaya al Centro de Agentes.</p>
+      </div>
+    {% endif %}
+  </div>
+
+  <div style="display:grid; gap:18px; align-content:start">
+    <div class="card">
+      <div class="card-head"><h3><i class="bi bi-lightning-charge"></i> Acciones rápidas</h3></div>
+      <div class="quick-actions">
+        {% for qa in data.quick_actions %}
+        <a class="quick-action" href="{{ qa.href }}"><i class="bi bi-{{ qa.icon }}"></i>{{ qa.label }}</a>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h3><i class="bi bi-activity"></i> Estado del sistema</h3></div>
+      <div class="list-def">
+        <dt>Base de datos</dt><dd><span class="status-dot ok"></span>{{ data.system_status.database }}</dd>
+        <dt>Agentes</dt><dd>{{ data.system_status.agents }}</dd>
+        <dt>Modo</dt><dd><span class="chip chip-info">{{ data.system_status.mode }}</span></dd>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/vendor/js/chart.umd.min.js"></script>
+<script>
+  const CHARTS = {{ charts_json | safe }};
+  const palette = ["#1d5bbf", "#f2b705", "#1a9d64", "#e8890c", "#0b2447", "#2f6fe0"];
+
+  if (window.Chart && document.getElementById("rotationChart")) {
+    new Chart(document.getElementById("rotationChart"), {
+      type: "doughnut",
+      data: {
+        labels: CHARTS.rotation_labels,
+        datasets: [{ data: CHARTS.rotation_values, backgroundColor: palette, borderWidth: 2, borderColor: "#fff" }]
+      },
+      options: { plugins: { legend: { position: "bottom" } }, cutout: "60%" }
+    });
+  }
+  if (window.Chart && document.getElementById("institutionChart")) {
+    new Chart(document.getElementById("institutionChart"), {
+      type: "bar",
+      data: {
+        labels: CHARTS.institution_labels,
+        datasets: [{ label: "Internos", data: CHARTS.institution_values,
+          backgroundColor: ["#1d5bbf", "#f2b705"], borderRadius: 8, maxBarThickness: 70 }]
+      },
+      options: { plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+    });
+  }
+</script>
+{% endblock %}

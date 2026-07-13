@@ -1,0 +1,21 @@
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <span class="logo">360</span>
+    <span>UPeU <small>Internado</small></span>
+  </div>
+  <nav class="sidebar-nav">
+    {% for section in nav_sections %}
+      <div class="nav-section-title label">{{ t(section.title) }}</div>
+      {% for item in section.items %}
+        <a class="nav-link {% if active_path == item.endpoint %}active{% endif %}"
+           href="{{ item.endpoint }}" title="{{ t(item.label) }}">
+          <i class="bi bi-{{ item.icon }}"></i>
+          <span class="label">{{ t(item.label) }}</span>
+        </a>
+      {% endfor %}
+    {% endfor %}
+  </nav>
+  <div class="sidebar-foot label">
+    {{ app_name }} · Prototipo<br />Fase 1 · Parte 1
+  </div>
+</aside>

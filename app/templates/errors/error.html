@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Error del servidor{% endblock %}
+{% block content_anon %}
+<div class="error-page">
+  <div class="code">5<span>0</span>0</div>
+  <h2>Ocurrió un error</h2>
+  <p>Se produjo un error inesperado en el servidor. El equipo ha sido notificado. Intente nuevamente.</p>
+  <a class="btn btn-primary" href="/dashboard"><i class="bi bi-house"></i> Ir al inicio</a>
+</div>
+{% endblock %}

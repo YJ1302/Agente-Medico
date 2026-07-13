@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import csrf_field, field, select_field, error_summary %}
+{% from "partials/conflict_panel.html" import conflict_panel %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<nav class="result-count" style="margin-bottom:8px"><a href="/rotations">Rotaciones</a> / {{ 'Nueva' if mode=='create' else 'Editar' }}</nav>
+<div class="page-head"><h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1><p>{{ page_subtitle }}</p></div>
+
+<div style="max-width:820px">
+  {{ error_summary(errors) }}
+  {{ conflict_panel(conflicts, needs_confirmation) }}
+
+  <div class="card">
+  <form method="post" action="{% if mode=='create' %}/rotations/new{% else %}/rotations/{{ assignment_id }}/edit{% endif %}" novalidate>
+    {{ csrf_field(csrf_token) }}
+    <div class="form-grid">
+      {% if limited %}
+        <input type="hidden" name="student_id" value="{{ form.get('student_id') }}" />
+        <input type="hidden" name="rotation_type_id" value="{{ form.get('rotation_type_id') }}" />
+        <input type="hidden" name="sede_id" value="{{ form.get('sede_id') }}" />
+        <input type="hidden" name="period_id" value="{{ form.get('period_id') }}" />
+        <input type="hidden" name="start_date" value="{{ form.get('start_date') }}" />
+        <input type="hidden" name="status" value="{{ form.get('status') }}" />
+        <div class="full alert alert-info"><i class="bi bi-info-circle"></i>
+          Rotación activa: solo puede modificar tutor, fecha de término y notas.</div>
+      {% else %}
+        {{ select_field("student_id", "Interno", options.students, form.get("student_id"), required=True, errors=errors, empty_label="Seleccione…") }}
+        {{ select_field("rotation_type_id", "Rotación", options.rotation_types, form.get("rotation_type_id"), required=True, errors=errors, empty_label="Seleccione…") }}
+        {{ select_field("sede_id", "Sede", options.sedes, form.get("sede_id"), required=True, errors=errors, empty_label="Seleccione…") }}
+        {{ select_field("period_id", "Periodo académico", options.periods, form.get("period_id"), required=True, errors=errors, empty_label="Seleccione…") }}
+        {{ field("start_date", "Fecha de inicio", form.get("start_date"), type="date", errors=errors) }}
+        {{ select_field("status", "Estado", options.statuses, form.get("status"), errors=errors) }}
+      {% endif %}
+      {{ field("end_date", "Fecha de término", form.get("end_date"), type="date", errors=errors) }}
+      {{ select_field("tutor_id", "Tutor (opcional)", options.tutors, form.get("tutor_id"), errors=errors, empty_label="Sin tutor (se generará alerta)") }}
+      <div class="full">
+        <div class="form-group"><label class="form-label" for="f_notes">Notas</label>
+          <textarea class="form-control" id="f_notes" name="notes">{{ form.get('notes','') }}</textarea></div>
+      </div>
+    </div>
+    {% if needs_confirmation %}
+    <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:14px">
+      <input type="checkbox" name="confirm" value="1" /> Confirmo que revisé las advertencias y deseo continuar</label>
+    {% endif %}
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit"><i class="bi bi-check-lg"></i> Guardar</button>
+      <a class="btn btn-outline" href="{% if mode=='edit' %}/rotations/{{ assignment_id }}{% else %}/rotations{% endif %}">Cancelar</a>
+    </div>
+  </form>
+  </div>
+</div>
+{% endblock %}

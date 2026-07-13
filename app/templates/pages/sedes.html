@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1>
+  <p>{{ page_subtitle }}</p>
+</div>
+
+<div class="grid" style="grid-template-columns:repeat(2,1fr)">
+  {% for sede in sedes %}
+  <div class="card">
+    <div class="card-head">
+      <h3><i class="bi bi-hospital"></i> {{ sede.short_name or sede.name }}</h3>
+      <span class="chip chip-{{ 'info' if sede.institution_type.code == 'MINSA' else 'success' }}">
+        {{ sede.institution_type.code }}
+      </span>
+    </div>
+    <div class="list-def">
+      <dt>Nombre</dt><dd>{{ sede.name }}</dd>
+      <dt>Tipo</dt><dd>{{ 'Hospital' if sede.sede_type == 'hospital' else 'Centro de salud' }}</dd>
+      <dt>Ciudad</dt><dd>{{ sede.city or '—' }}</dd>
+    </div>
+  </div>
+  {% else %}
+  <div class="card"><div class="empty-state"><div class="es-icon"><i class="bi bi-inbox"></i></div><p>No hay sedes.</p></div></div>
+  {% endfor %}
+</div>
+{% endblock %}

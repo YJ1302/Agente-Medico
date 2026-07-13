@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Sesión expirada{% endblock %}
+{% block content_anon %}
+<div class="error-page">
+  <div class="code">4<span>0</span>0</div>
+  <h2>Verificación de seguridad fallida</h2>
+  <p>{{ message or "Token de seguridad inválido o ausente." }}
+     Por su seguridad, la acción no se completó. Regrese, recargue la página e inténtelo nuevamente.</p>
+  <a class="btn btn-primary" href="/dashboard"><i class="bi bi-arrow-left"></i> Volver</a>
+</div>
+{% endblock %}

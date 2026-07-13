@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import csrf_field, error_summary %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% set AREA_LABELS = {'conocimientos':'Conocimientos','desempeno':'Desempeño','actitudinal':'Actitudinal'} %}
+{% set SCALE = {4:'Muy satisfactorio',3:'Satisfactorio',2:'Casi satisfactorio',1:'Poco satisfactorio',0:'Inaceptable'} %}
+
+{% block content %}
+<nav class="result-count" style="margin-bottom:8px"><a href="/evaluations">Evaluaciones</a> / {{ ev.student.full_name if ev.student else '' }}</nav>
+
+<div class="detail-head">
+  <div class="page-head" style="margin:0">
+    <h1><i class="bi bi-check2-square"></i> {{ ev.student.full_name if ev.student else '' }}</h1>
+    <p>{{ ev.assignment.rotation_type.name if ev.assignment and ev.assignment.rotation_type else '' }} ·
+      {{ ev.assignment.sede.short_name if ev.assignment and ev.assignment.sede else '' }} ·
+      {% set tone = {'approved':'success','submitted':'info','in_progress':'warning','pending':'muted','returned_for_correction':'danger'} %}
+      <span class="chip chip-{{ tone.get(ev.status,'muted') }}">{{ ev.status }}</span></p>
+  </div>
+  <div class="actions">
+    {% if ev.status == 'approved' %}
+    <a class="btn btn-outline" href="/evaluations/{{ ev.id }}/print" target="_blank"><i class="bi bi-printer"></i> Imprimir</a>
+    {% endif %}
+    {% if can_reopen %}
+    <button class="btn btn-outline" onclick="document.getElementById('reopenBox').style.display='block'">
+      <i class="bi bi-arrow-counterclockwise"></i> Reabrir</button>
+    {% endif %}
+  </div>
+</div>
+
+{{ error_summary(errors) }}
+
+{% if ev.status == 'returned_for_correction' %}
+<div class="alert alert-danger">
+  <i class="bi bi-arrow-return-left"></i> <strong>Devuelta para corrección</strong>
+  {% if ev.review_comments %}: {{ ev.review_comments }}{% endif %}
+  {% if ev.reviewed_at %}<br><small>Por el coordinador el {{ ev.reviewed_at.strftime('%d/%m/%Y %H:%M') }}</small>{% endif %}
+</div>
+{% endif %}
+
+{% if can_reopen %}
+<div class="card" id="reopenBox" style="display:none;border-left:4px solid var(--warning);margin-bottom:16px">
+  <form method="post" action="/evaluations/{{ ev.id }}/reopen">
+    {{ csrf_field(csrf_token) }}
+    <strong>Reabrir evaluación aprobada (solo administrador)</strong>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <input class="form-control" name="reason" required placeholder="Motivo obligatorio" />
+      <button class="btn btn-primary" style="background:var(--warning)" type="submit"
+        onclick="return confirm('¿Reabrir esta evaluación aprobada?')">Reabrir</button>
+    </div>
+  </form>
+</div>
+{% endif %}
+
+{% if can_review %}
+<div class="card" style="border-left:4px solid var(--info);margin-bottom:16px">
+  <div class="card-head"><h3><i class="bi bi-clipboard-check"></i> Revisión del coordinador de sede</h3></div>
+  <form method="post" action="/evaluations/{{ ev.id }}/approve" style="margin-bottom:10px">
+    {{ csrf_field(csrf_token) }}
+    <label class="form-label" for="apcom">Comentario (opcional)</label>
+    <textarea class="form-control" id="apcom" name="comments" style="margin-bottom:8px"></textarea>
+    <button class="btn btn-primary" type="submit" onclick="return confirm('¿Aprobar esta evaluación?')">
+      <i class="bi bi-check2-circle"></i> Aprobar</button>
+  </form>
+  <form method="post" action="/evaluations/{{ ev.id }}/return">
+    {{ csrf_field(csrf_token) }}
+    <label class="form-label" for="retcom">Motivo de devolución (obligatorio)</label>
+    <div style="display:flex;gap:8px">
+      <input class="form-control" id="retcom" name="comments" required placeholder="Explique qué debe corregirse" />
+      <button class="btn btn-outline" style="color:var(--danger)" type="submit">
+        <i class="bi bi-arrow-return-left"></i> Devolver</button>
+    </div>
+  </form>
+</div>
+{% endif %}
+
+<div class="grid cols-2">
+  <div style="display:grid;gap:18px;align-content:start">
+    <div class="card">
+      <div class="card-head"><h3><i class="bi bi-person-vcard"></i> Datos generales</h3></div>
+      <div class="meta-grid">
+        <div class="m-item"><div class="m-label">Interno</div><div class="m-value">{{ ev.student.full_name if ev.student else '—' }}</div></div>
+        <div class="m-item"><div class="m-label">Rotación</div><div class="m-value">{{ ev.assignment.rotation_type.name if ev.assignment and ev.assignment.rotation_type else '—' }}</div></div>
+        <div class="m-item"><div class="m-label">Tutor</div><div class="m-value">{{ ev.assignment.tutor.user.full_name if ev.assignment and ev.assignment.tutor else '—' }}</div></div>
+        <div class="m-item"><div class="m-label">Sede</div><div class="m-value">{{ ev.assignment.sede.short_name if ev.assignment and ev.assignment.sede else '—' }}</div></div>
+        <div class="m-item"><div class="m-label">Enviada</div><div class="m-value">{{ ev.submitted_at.strftime('%d/%m/%Y %H:%M') if ev.submitted_at else '—' }}</div></div>
+        <div class="m-item"><div class="m-label">Revisada</div><div class="m-value">{{ ev.reviewed_at.strftime('%d/%m/%Y %H:%M') if ev.reviewed_at else '—' }}</div></div>
+      </div>
+      {% if ev.reopened_reason %}<p style="color:var(--warning);margin-top:10px"><strong>Reabierta:</strong> {{ ev.reopened_reason }}</p>{% endif %}
+    </div>
+
+    <div class="card"><div class="card-head"><h3><i class="bi bi-shield-check"></i> Auditoría</h3></div>
+      {% if audit_rows %}<table class="data"><tbody>{% for r in audit_rows %}<tr>
+        <td style="white-space:nowrap">{{ r.created_at.strftime('%d/%m %H:%M') }}</td>
+        <td><span class="chip chip-muted">{{ r.action }}</span></td><td>{{ r.actor_label }}</td></tr>{% endfor %}</tbody></table>
+      {% else %}<p style="color:var(--text-muted)">Sin registros.</p>{% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><h3><i class="bi bi-graph-up"></i> Resumen de notas</h3></div>
+    <div class="meta-grid">
+      {% for area, label in AREA_LABELS.items() %}
+      <div class="m-item"><div class="m-label">{{ label }}</div>
+        <div class="m-value eval-area-total" id="total_{{ area }}">
+          {{ ('%.0f'|format(ev.score_knowledge) if area=='conocimientos' else ('%.0f'|format(ev.score_performance) if area=='desempeno' else '%.0f'|format(ev.score_attitude))) if (ev.score_knowledge is not none and area=='conocimientos') or (ev.score_performance is not none and area=='desempeno') or (ev.score_attitude is not none and area=='actitudinal') else '—' }} / 20</div></div>
+      {% endfor %}
+      <div class="m-item"><div class="m-label">Nota final (0–20)</div>
+        <div class="m-value eval-area-total" id="total_final" style="font-size:26px">
+          {{ '%.2f'|format(ev.final_score) if ev.final_score is not none else '—' }}</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px">
+  <div class="card-head"><h3><i class="bi bi-list-check"></i> Criterios (15)</h3></div>
+
+  {% if can_edit %}
+  <form method="post" id="scoreForm" action="/evaluations/{{ ev.id }}/save">
+    {{ csrf_field(csrf_token) }}
+    {% for area, label in AREA_LABELS.items() %}
+    <h4 style="margin:18px 0 8px">{{ label }} <span class="chip chip-muted" id="area_chip_{{ area }}"></span></h4>
+    {% for c in criteria_by_area[area] %}
+    <div class="form-group" style="border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:10px">
+      <label class="form-label" style="font-weight:500">{{ c.description }}</label>
+      <div class="score-scale" data-area="{{ area }}">
+        {% for val in [0,1,2,3,4] %}
+        <input type="radio" id="c{{ c.id }}_{{ val }}" name="score_{{ c.id }}" value="{{ val }}"
+               {% if c.score == val %}checked{% endif %} title="{{ SCALE[val] }}" />
+        <label for="c{{ c.id }}_{{ val }}">{{ val }}</label>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+    {% endfor %}
+    <div class="form-group">
+      <label class="form-label" for="comments">Comentarios del tutor</label>
+      <textarea class="form-control" id="comments" name="comments">{{ ev.comments or '' }}</textarea>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-outline" type="submit"><i class="bi bi-save"></i> Guardar borrador</button>
+      <button class="btn btn-primary" type="submit" formaction="/evaluations/{{ ev.id }}/submit"
+              onclick="return confirm('¿Enviar la evaluación para aprobación? No podrá editarla después.')">
+        <i class="bi bi-send"></i> Enviar para aprobación</button>
+    </div>
+  </form>
+  {% else %}
+  {% for area, label in AREA_LABELS.items() %}
+  <h4 style="margin:18px 0 8px">{{ label }}</h4>
+  <table class="data" style="margin-bottom:8px"><tbody>
+    {% for c in criteria_by_area[area] %}
+    <tr><td>{{ c.description }}</td><td style="width:60px;text-align:center">
+      {% if c.score is not none %}<span class="chip chip-info">{{ c.score }}</span>{% else %}<span class="chip chip-muted">—</span>{% endif %}
+    </td></tr>
+    {% endfor %}
+  </tbody></table>
+  {% endfor %}
+  {% if ev.comments %}<p><strong>Comentarios del tutor:</strong> {{ ev.comments }}</p>{% endif %}
+  {% endif %}
+</div>
+
+{% if ev.review_comments and ev.status != 'returned_for_correction' %}
+<div class="card" style="margin-top:16px">
+  <div class="card-head"><h3><i class="bi bi-chat-left-text"></i> Comentarios del coordinador</h3></div>
+  <p>{{ ev.review_comments }}</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function(){
+  var scales = document.querySelectorAll('.score-scale');
+  function recalc(){
+    var sums = {conocimientos:0, desempeno:0, actitudinal:0};
+    var counts = {conocimientos:0, desempeno:0, actitudinal:0};
+    scales.forEach(function(sc){
+      var area = sc.getAttribute('data-area');
+      var checked = sc.querySelector('input[type=radio]:checked');
+      if (checked) { sums[area] += parseInt(checked.value, 10); counts[area] += 1; }
+    });
+    var finalParts = [];
+    Object.keys(sums).forEach(function(area){
+      var el = document.getElementById('total_' + area);
+      if (el) el.textContent = sums[area] + ' / 20';
+      var chip = document.getElementById('area_chip_' + area);
+      if (chip) chip.textContent = counts[area] + '/5 calificados · total ' + sums[area];
+      finalParts.push(sums[area]);
+    });
+    var allCounted = Object.values(counts).every(function(c){ return c === 5; });
+    var finalEl = document.getElementById('total_final');
+    if (finalEl) {
+      var avg = finalParts.reduce(function(a,b){return a+b;},0) / 3;
+      finalEl.textContent = allCounted ? avg.toFixed(2) + ' (vista previa)' : avg.toFixed(2) + ' (incompleto)';
+    }
+  }
+  scales.forEach(function(sc){ sc.addEventListener('change', recalc); });
+  recalc();
+})();
+</script>
+{% endblock %}

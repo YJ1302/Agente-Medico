@@ -1,0 +1,1 @@
+# Keeps the SQLite data directory in version control. The .db file itself is git-ignored.

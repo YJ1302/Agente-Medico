@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="page-head"><h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1><p>{{ page_subtitle }}</p></div>
+
+<div class="card">
+  <div class="result-count" style="margin-bottom:10px">{{ entries|length }} registro(s)</div>
+  {% if entries %}
+  <div class="table-scroll"><table class="data">
+    <thead><tr><th>Actividad</th><th>Rotación</th><th>Fecha</th><th>Cantidad</th><th>Estado</th><th></th></tr></thead>
+    <tbody>{% for e in entries %}
+      <tr>
+        <td>{{ e.definition.name }}</td>
+        <td>{{ e.assignment.rotation_type.name if e.assignment and e.assignment.rotation_type else '—' }}</td>
+        <td>{{ e.logged_on.strftime('%d/%m/%Y') if e.logged_on else '—' }}</td>
+        <td>{{ e.performed_count }}</td>
+        <td><span class="chip chip-{{ {'pending':'warning','verified':'success','rejected':'danger','cancelled':'muted'}.get(e.verification_status,'muted') }}">{{ e.verification_status }}</span></td>
+        <td><a class="btn btn-outline btn-sm" href="/activities/entries/{{ e.id }}"><i class="bi bi-eye"></i></a></td>
+      </tr>
+    {% endfor %}</tbody>
+  </table></div>
+  {% else %}
+  <div class="empty-state"><div class="es-icon"><i class="bi bi-journal-x"></i></div>
+    <p>Aún no ha registrado actividades. Puede agregar registros desde la pestaña «Actividades» de una rotación.</p></div>
+  {% endif %}
+</div>
+{% endblock %}

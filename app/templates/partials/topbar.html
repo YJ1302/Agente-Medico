@@ -1,0 +1,58 @@
+<header class="topbar">
+  <button class="icon-btn mobile-only" id="mobileMenuBtn" aria-label="Menú">
+    <i class="bi bi-list"></i>
+  </button>
+  <button class="icon-btn desktop-only" id="sidebarToggle" aria-label="Contraer menú">
+    <i class="bi bi-layout-sidebar"></i>
+  </button>
+  <span class="page-name">{{ page_title or "Dashboard" }}</span>
+
+  <div class="spacer"></div>
+
+  <!-- Language toggle (ES / EN chrome) -->
+  <div class="dropdown">
+    <button class="icon-btn lang-btn" data-dropdown="langMenu" title="{{ t('Idioma') }}">
+      <i class="bi bi-translate"></i> {{ lang | upper }}
+    </button>
+    <div class="dropdown-menu" id="langMenu">
+      <div style="font-weight:700; padding:8px 11px; color:var(--navy)">{{ t('Traducir') }}</div>
+      <a href="/set-lang?lang=es&next={{ active_path }}"><i class="bi bi-check2{{ '' if lang=='es' else '-square' }}"></i> Español</a>
+      <a href="/set-lang?lang=en&next={{ active_path }}"><i class="bi bi-check2{{ '' if lang=='en' else '-square' }}"></i> English</a>
+    </div>
+  </div>
+
+  <!-- Notifications -->
+  <div class="dropdown">
+    <button class="icon-btn" data-dropdown="notifMenu" aria-label="Notificaciones" style="position:relative">
+      <i class="bi bi-bell"></i>
+      <span class="notif-badge" id="notifBadge" style="display:none">0</span>
+    </button>
+    <div class="dropdown-menu" id="notifMenu">
+      <div style="font-weight:700; padding:8px 11px; color:var(--navy)">{{ t('Alertas recientes') }}</div>
+      <div id="notifList">
+        <div class="notif-item"><div class="n-msg">Cargando…</div></div>
+      </div>
+      <a href="/alerts" style="justify-content:center; color:var(--blue); font-weight:600">{{ t('Ver todas') }}</a>
+    </div>
+  </div>
+
+  <!-- User menu -->
+  <div class="dropdown">
+    <div class="user-chip" data-dropdown="userMenu">
+      <div class="avatar">{{ identity.full_name[:1] | upper }}</div>
+      <div class="u-meta">
+        <div class="u-name">{{ identity.full_name }}</div>
+        <div class="u-role">{{ identity.role_name }}</div>
+      </div>
+      <i class="bi bi-chevron-down" style="font-size:13px;color:var(--text-muted)"></i>
+    </div>
+    <div class="dropdown-menu" id="userMenu">
+      <div class="dm-item" style="opacity:.8">
+        <i class="bi bi-envelope"></i>{{ identity.email }}
+      </div>
+      <a href="/profile"><i class="bi bi-person-circle"></i>{{ t('Mi perfil') }}</a>
+      <a href="/settings"><i class="bi bi-gear"></i>{{ t('Configuración') }}</a>
+      <a href="/logout" style="color:var(--danger)"><i class="bi bi-box-arrow-right"></i>{{ t('Cerrar sesión') }}</a>
+    </div>
+  </div>
+</header>

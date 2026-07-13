@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1>
+  <p>{{ page_subtitle }}</p>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <h3><i class="bi bi-shield-check"></i> Registro de auditoría</h3>
+    <span class="chip chip-info">{{ logs | length }}</span>
+  </div>
+  {% if logs %}
+  <div class="table-scroll">
+    <table class="data">
+      <thead><tr><th>Fecha</th><th>Actor</th><th>Acción</th><th>Entidad</th></tr></thead>
+      <tbody>
+        {% for l in logs %}
+        <tr>
+          <td>{{ l.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+          <td>{{ l.actor_label }}</td>
+          <td><span class="chip chip-muted">{{ l.action }}</span></td>
+          <td>{{ l.entity_type or '—' }} {{ ('#' ~ l.entity_id) if l.entity_id else '' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state"><div class="es-icon"><i class="bi bi-shield-check"></i></div>
+    <h3>Auditoría preparada</h3>
+    <p>El esquema de auditoría está listo. El registro exhaustivo de acciones se activará
+       progresivamente en las Partes 2 y 3.</p></div>
+  {% endif %}
+</div>
+{% endblock %}
