@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import csrf_field %}
+{% block title %}{{ inc.code }}{% endblock %}
+
+{% set sev_tone = {'low':'muted','medium':'info','high':'warning','critical':'danger'} %}
+{% set sev_label = {'low':'Baja','medium':'Media','high':'Alta','critical':'Crítica'} %}
+{% set st_tone = {'open':'info','under_review':'warning','action_required':'warning','resolved':'success','closed':'muted','dismissed':'muted','reopened':'danger'} %}
+{% set st_label = {'open':'Abierta','under_review':'En revisión','action_required':'Requiere acción','resolved':'Resuelta','closed':'Cerrada','dismissed':'Descartada','reopened':'Reabierta'} %}
+{% set action_label = {'create':'Registro','start_review':'Inicio de revisión','mark_action_required':'Requiere acción','resolve':'Resolución','close':'Cierre','dismiss':'Descarte','reopen':'Reapertura'} %}
+
+{% block content %}
+{% if inc.severity=='critical' and inc.status not in ['closed','dismissed'] %}
+<div class="flash flash-danger" style="margin-bottom:12px"><i class="bi bi-exclamation-octagon"></i>
+  <span><strong>Incidencia crítica.</strong> Requiere atención prioritaria.</span></div>
+{% endif %}
+
+<div class="page-head" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+  <div><h1><i class="bi bi-exclamation-triangle"></i> {{ inc.code }}</h1><p>{{ inc.title }}</p></div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+    <span class="chip chip-{{ sev_tone.get(inc.severity,'muted') }}">{{ sev_label.get(inc.severity, inc.severity) }}</span>
+    <span class="chip chip-{{ st_tone.get(inc.status,'muted') }}">{{ st_label.get(inc.status, inc.status) }}</span>
+    {% if inc.visibility=='confidential' %}<span class="chip chip-danger"><i class="bi bi-shield-lock"></i> Confidencial</span>
+    {% elif inc.visibility=='restricted' %}<span class="chip chip-warning"><i class="bi bi-eye-slash"></i> Restringido</span>{% endif %}
+  </div>
+</div>
+
+<nav class="breadcrumbs" style="margin-bottom:12px">
+  <a href="/incidents">Incidencias</a> <i class="bi bi-chevron-right"></i> <span>{{ inc.code }}</span>
+</nav>
+
+{% if can_manage or can_reopen %}
+<div class="card" style="margin-bottom:16px">
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    {% if can_manage and inc.status not in ['closed','dismissed'] %}
+      <a class="btn btn-outline btn-sm" href="/incidents/{{ inc.id }}/edit"><i class="bi bi-pencil"></i> Editar</a>
+    {% endif %}
+    {% if can_manage %}
+      {% if inc.status=='open' %}
+      <form method="post" action="/incidents/{{ inc.id }}/review">{{ csrf_field(csrf_token) }}<button class="btn btn-primary btn-sm"><i class="bi bi-search"></i> Iniciar revisión</button></form>
+      <button class="btn btn-outline btn-sm" type="button" onclick="document.getElementById('dismissBox').style.display='block'"><i class="bi bi-slash-circle"></i> Descartar</button>
+      {% elif inc.status=='under_review' %}
+      <form method="post" action="/incidents/{{ inc.id }}/action">{{ csrf_field(csrf_token) }}<button class="btn btn-outline btn-sm"><i class="bi bi-flag"></i> Requiere acción</button></form>
+      <button class="btn btn-success btn-sm" type="button" onclick="document.getElementById('resolveBox').style.display='block'"><i class="bi bi-check2"></i> Resolver</button>
+      <button class="btn btn-outline btn-sm" type="button" onclick="document.getElementById('dismissBox').style.display='block'"><i class="bi bi-slash-circle"></i> Descartar</button>
+      {% elif inc.status in ['action_required','reopened'] %}
+      <button class="btn btn-success btn-sm" type="button" onclick="document.getElementById('resolveBox').style.display='block'"><i class="bi bi-check2"></i> Resolver</button>
+      {% elif inc.status=='resolved' %}
+      <form method="post" action="/incidents/{{ inc.id }}/close" onsubmit="return confirm('¿Cerrar la incidencia?')">{{ csrf_field(csrf_token) }}<button class="btn btn-primary btn-sm"><i class="bi bi-lock"></i> Cerrar</button></form>
+      {% endif %}
+    {% endif %}
+    {% if can_reopen %}
+      <button class="btn btn-outline btn-sm" type="button" onclick="document.getElementById('reopenBox').style.display='block'"><i class="bi bi-unlock"></i> Reabrir</button>
+    {% endif %}
+  </div>
+
+  <div id="resolveBox" style="display:none;margin-top:12px">
+    <form method="post" action="/incidents/{{ inc.id }}/resolve">{{ csrf_field(csrf_token) }}
+      <label>Resolución / comentarios <span class="req">*</span></label>
+      <textarea class="form-control" name="resolution" rows="3" required>{{ inc.resolution or '' }}</textarea>
+      <div style="margin-top:8px"><button class="btn btn-success btn-sm"><i class="bi bi-check2"></i> Confirmar resolución</button></div>
+    </form>
+  </div>
+  <div id="dismissBox" style="display:none;margin-top:12px">
+    <form method="post" action="/incidents/{{ inc.id }}/dismiss">{{ csrf_field(csrf_token) }}
+      <label>Motivo del descarte <span class="req">*</span></label>
+      <textarea class="form-control" name="reason" rows="2" required></textarea>
+      <div style="margin-top:8px"><button class="btn btn-outline btn-sm"><i class="bi bi-slash-circle"></i> Confirmar descarte</button></div>
+    </form>
+  </div>
+  <div id="reopenBox" style="display:none;margin-top:12px">
+    <form method="post" action="/incidents/{{ inc.id }}/reopen">{{ csrf_field(csrf_token) }}
+      <label>Motivo de reapertura (Administrador) <span class="req">*</span></label>
+      <textarea class="form-control" name="reason" rows="2" required></textarea>
+      <div style="margin-top:8px"><button class="btn btn-outline btn-sm"><i class="bi bi-unlock"></i> Confirmar reapertura</button></div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="tabs" data-tabs>
+  <div class="tab active" data-tab="resumen">Resumen</div>
+  <div class="tab" data-tab="seguimiento">Seguimiento</div>
+  <div class="tab" data-tab="adjuntos">Adjuntos ({{ attachments|length }})</div>
+  <div class="tab" data-tab="historial">Historial</div>
+  <div class="tab" data-tab="auditoria">Auditoría</div>
+</div>
+
+<div data-panel="resumen" class="card">
+  <div class="table-scroll"><table class="data"><tbody>
+    <tr><th>Código</th><td>{{ inc.code }}</td><th>Tipo</th><td>{{ type_label }}</td></tr>
+    <tr><th>Severidad</th><td>{{ sev_label.get(inc.severity, inc.severity) }}</td><th>Estado</th><td>{{ st_label.get(inc.status, inc.status) }}</td></tr>
+    <tr><th>Interno</th><td>{{ inc.student.full_name if inc.student else '—' }}</td><th>Sede</th><td>{{ (inc.sede.short_name or inc.sede.name) if inc.sede else '—' }}</td></tr>
+    <tr><th>Reportado</th><td>{{ inc.report_date.strftime('%d/%m/%Y') if inc.report_date else '—' }}</td><th>Fecha límite</th><td>{{ inc.due_date.strftime('%d/%m/%Y') if inc.due_date else '—' }}</td></tr>
+    <tr><th>Responsable</th><td>{{ inc.responsible_user_id or '—' }}</td><th>Creado</th><td>{{ inc.created_at.strftime('%d/%m/%Y %H:%M') }}</td></tr>
+  </tbody></table></div>
+  <h4 style="margin-top:14px">Descripción</h4>
+  <p style="white-space:pre-wrap">{{ inc.description }}</p>
+  {% if can_see_internal and inc.internal_notes %}
+  <div class="flash flash-warning" style="margin-top:12px"><i class="bi bi-eye-slash"></i>
+    <span><strong>Notas internas (restringido):</strong><br>{{ inc.internal_notes }}</span></div>
+  {% endif %}
+</div>
+
+<div data-panel="seguimiento" class="card" style="display:none">
+  <div class="table-scroll"><table class="data"><tbody>
+    <tr><th>Resolución</th><td>{{ inc.resolution or '— Pendiente —' }}</td></tr>
+    <tr><th>Resuelta</th><td>{{ inc.resolved_at.strftime('%d/%m/%Y %H:%M') if inc.resolved_at else '—' }}</td></tr>
+    <tr><th>Cerrada</th><td>{{ inc.closed_at.strftime('%d/%m/%Y %H:%M') if inc.closed_at else '—' }}</td></tr>
+    {% if inc.dismiss_reason %}<tr><th>Descarte</th><td>{{ inc.dismiss_reason }}</td></tr>{% endif %}
+    {% if inc.reopen_reason %}<tr><th>Reapertura</th><td>{{ inc.reopen_reason }}</td></tr>{% endif %}
+  </tbody></table></div>
+</div>
+
+<div data-panel="adjuntos" class="card" style="display:none">
+  <div class="flash flash-info" style="margin-bottom:12px"><i class="bi bi-shield-exclamation"></i>
+    <span><strong>Aviso de privacidad:</strong> no adjunte historias clínicas ni datos que identifiquen a pacientes.</span></div>
+  {% if can_upload %}
+  <form method="post" action="/incidents/{{ inc.id }}/attachments" enctype="multipart/form-data" style="margin-bottom:14px">
+    {{ csrf_field(csrf_token) }}
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input class="form-control" type="file" name="file" required style="max-width:360px" accept=".pdf,.docx,.xlsx,.xlsm,.png,.jpg,.jpeg">
+      <button class="btn btn-primary btn-sm"><i class="bi bi-upload"></i> Subir</button>
+      <small style="color:var(--text-muted)">PDF, DOCX, XLSX, XLSM, PNG, JPG</small>
+    </div>
+  </form>
+  {% endif %}
+  {% if attachments %}
+  <div class="table-scroll"><table class="data">
+    <thead><tr><th>Archivo</th><th>Tipo</th><th>Tamaño</th><th>Subido</th><th></th></tr></thead>
+    <tbody>
+      {% for a in attachments %}
+      <tr>
+        <td><i class="bi bi-paperclip"></i> {{ a.original_filename }}</td>
+        <td><small>{{ a.mime_type }}</small></td>
+        <td>{{ (a.size_bytes / 1024)|round(1) }} KB</td>
+        <td>{{ a.created_at.strftime('%d/%m/%Y') }}</td>
+        <td style="display:flex;gap:6px">
+          <a class="btn btn-outline btn-sm" href="/incidents/attachments/{{ a.id }}/download"><i class="bi bi-download"></i></a>
+          {% if can_upload or identity.role_code=='admin' %}
+          <form method="post" action="/incidents/attachments/{{ a.id }}/delete" onsubmit="return confirm('¿Eliminar este adjunto?')">
+            {{ csrf_field(csrf_token) }}<button class="btn btn-danger btn-sm"><i class="bi bi-trash"></i></button></form>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody></table></div>
+  {% else %}<div class="empty-state"><div class="es-icon"><i class="bi bi-paperclip"></i></div><p>Sin adjuntos.</p></div>{% endif %}
+</div>
+
+<div data-panel="historial" class="card" style="display:none">
+  {% if history %}
+  <div class="timeline">
+    {% for h in history %}
+    <div class="timeline-item"><div class="timeline-dot"></div>
+      <div><strong>{{ action_label.get(h.action, h.action) }}</strong>
+        <span class="chip chip-muted">{{ st_label.get(h.to_status, h.to_status) }}</span>
+        <div style="color:var(--text-muted);font-size:.85em">{{ h.created_at.strftime('%d/%m/%Y %H:%M') }} · {{ h.actor_label }}</div>
+        {% if h.note %}<div style="margin-top:4px">{{ h.note }}</div>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}<div class="empty-state"><p>Sin historial.</p></div>{% endif %}
+</div>
+
+<div data-panel="auditoria" class="card" style="display:none">
+  {% if audit_rows %}
+  <div class="table-scroll"><table class="data">
+    <thead><tr><th>Fecha</th><th>Acción</th><th>Usuario</th></tr></thead>
+    <tbody>{% for r in audit_rows %}<tr><td>{{ r.created_at.strftime('%d/%m/%Y %H:%M') }}</td><td>{{ r.action }}</td><td>{{ r.actor_label }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<div class="empty-state"><p>Sin registros de auditoría.</p></div>{% endif %}
+</div>
+{% endblock %}

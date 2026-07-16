@@ -46,14 +46,34 @@ from app.models.evaluation import (
     Evaluation,
     EvaluationCriterion,
 )
+from app.models.base import (
+    DocumentPriority,
+    GradeComponentStatus,
+    GradeSchemeStatus,
+    ImportMode,
+    ImportStatus,
+    VisibilityLevel,
+)
+from app.models.grades import (
+    GradeComponentDefinition,
+    GradeComponentHistory,
+    GradeScheme,
+    StudentGradeComponent,
+)
+from app.models.imports import ImportBatch, ImportRow
 from app.models.operations import (
     ALERT_INCOMPLETE_PROFILE,
     ALERT_MISSING_TUTOR,
     ALERT_PENDING_EVALUATION,
     ALERT_ROTATION_ENDING,
+    OWNER_DOCUMENT,
+    OWNER_INCIDENT,
     Alert,
     DocumentRecord,
+    DocumentSequence,
+    DocumentTemplate,
     Incident,
+    StatusHistory,
 )
 from app.models.organization import (
     InstitutionType,
@@ -647,17 +667,183 @@ def seed(reset: bool = False) -> None:  # noqa: C901 - linear seed reads clearer
                   source="rule_engine", related_entity_type="student"),
         ])
 
-        # -- One formal document + one incident (for those modules) ------
-        db.add(DocumentRecord(
-            code="DOC-2026-0001", title="Designación de tutores - H. Vitarte",
-            doc_type="Oficio", status=DocumentStatus.SUBMITTED.value,
-            origin="Coordinador de Sede", destination="Coordinación de Internado UPeU",
-            sede_id=sedes[0].id, summary="Remite la relación de tutores designados para el periodo."))
-        db.add(Incident(
-            code="INC-2026-0001", title="Retraso en credenciales de acceso",
-            description="Dos internos reportan demora en la emisión de credenciales en la sede.",
-            severity=IncidentSeverity.MEDIUM.value, status=IncidentStatus.OPEN.value,
-            sede_id=sedes[3].id, reported_by="Coordinador de Sede"))
+        # -- Batch 2E: document templates --------------------------------
+        _seed_document_templates(db)
+
+        # -- Batch 2E: formal documents (every status) -------------------
+        admin_id, uni_id = admin.id, uni_coord.id
+        sede_coord_id = sede_coords[0].user_id
+        student_uid = student_user.id
+        now = utcnow()
+
+        def _doc(seq, **kw):
+            code = f"DOC-{year}-{seq:04d}"
+            kw.setdefault("created_by_user_id", uni_id)
+            kw.setdefault("priority", DocumentPriority.NORMAL.value)
+            kw.setdefault("visibility", VisibilityLevel.NORMAL.value)
+            d = DocumentRecord(code=code, seq_year=year, seq_number=seq, **kw)
+            db.add(d); db.flush()
+            db.add(StatusHistory(owner_type=OWNER_DOCUMENT, owner_id=d.id, from_status=None,
+                                 to_status=DocumentStatus.DRAFT.value, action="create",
+                                 actor_user_id=kw.get("created_by_user_id"), actor_label="seed"))
+            if d.status != DocumentStatus.DRAFT.value:
+                db.add(StatusHistory(owner_type=OWNER_DOCUMENT, owner_id=d.id,
+                                     from_status=DocumentStatus.DRAFT.value, to_status=d.status,
+                                     action="seed_state", actor_user_id=uni_id, actor_label="seed"))
+            return d
+
+        _doc(1, title="Designación de tutores - H. Vitarte", doc_type="tutor_designation",
+             status=DocumentStatus.DRAFT.value, created_by_user_id=sede_coord_id,
+             origin="Coordinador de Sede", destination="Coordinación de Internado UPeU",
+             sede_id=sedes[0].id, subject="Relación de tutores designados",
+             body="Se remite la relación de tutores designados para el periodo vigente.")
+
+        _doc(2, title="Comunicación oficial - inicio de periodo", doc_type="official_communication",
+             status=DocumentStatus.SUBMITTED.value, submitted_by_user_id=sede_coord_id,
+             submitted_at=now - timedelta(days=1), origin="Coordinador de Sede",
+             destination="Coordinación de Internado UPeU", sede_id=sedes[0].id,
+             subject="Inicio del periodo de internado",
+             body="Comunicamos el inicio del periodo de internado en la sede.")
+
+        _doc(3, title="Cambio de rotación - interno", doc_type="rotation_change",
+             status=DocumentStatus.UNDER_REVIEW.value, submitted_by_user_id=sede_coord_id,
+             submitted_at=now - timedelta(days=2), reviewed_by_user_id=uni_id,
+             reviewed_at=now - timedelta(days=1), sede_id=sedes[1].id, student_id=students[1].id,
+             subject="Solicitud de cambio de rotación",
+             body="Se solicita el cambio de rotación por motivos de programación.")
+
+        _doc(4, title="Designación de coordinador de sede", doc_type="coordinator_designation",
+             status=DocumentStatus.APPROVED.value, submitted_by_user_id=sede_coord_id,
+             submitted_at=now - timedelta(days=6), reviewed_by_user_id=uni_id,
+             reviewed_at=now - timedelta(days=5), approved_by_user_id=uni_id,
+             approved_at=now - timedelta(days=4), sede_id=sedes[1].id,
+             subject="Designación de coordinador de sede",
+             body="Se aprueba la designación del coordinador de sede para el periodo.")
+
+        _doc(5, title="Corrección de nota - rotación", doc_type="grade_correction",
+             status=DocumentStatus.REJECTED.value, submitted_by_user_id=sede_coord_id,
+             submitted_at=now - timedelta(days=3), reviewed_by_user_id=uni_id,
+             reviewed_at=now - timedelta(days=2), rejected_by_user_id=uni_id,
+             rejected_at=now - timedelta(days=1),
+             rejection_reason="Falta el sustento del acta original. Adjuntar y reenviar.",
+             sede_id=sedes[0].id, student_id=students[2].id,
+             subject="Solicitud de corrección de nota",
+             body="Se solicita la corrección de la nota registrada por error material.")
+
+        _doc(6, title="Comunicación oficial archivada", doc_type="official_communication",
+             status=DocumentStatus.ARCHIVED.value, submitted_by_user_id=sede_coord_id,
+             submitted_at=now - timedelta(days=40), reviewed_by_user_id=uni_id,
+             reviewed_at=now - timedelta(days=39), approved_by_user_id=uni_id,
+             approved_at=now - timedelta(days=38), archived_by_user_id=uni_id,
+             archived_at=now - timedelta(days=30), sede_id=sedes[1].id,
+             subject="Comunicación de cierre de periodo anterior",
+             body="Comunicación oficial correspondiente al periodo anterior, archivada.")
+
+        # Resignation example modelled on the attached reference structure.
+        _doc(7, title="Comunicación de renuncia a plaza de Internado Médico",
+             doc_type="resignation", status=DocumentStatus.APPROVED.value,
+             priority=DocumentPriority.HIGH.value, submitted_by_user_id=uni_id,
+             submitted_at=now - timedelta(days=8), reviewed_by_user_id=uni_id,
+             reviewed_at=now - timedelta(days=7), approved_by_user_id=admin_id,
+             approved_at=now - timedelta(days=6), sede_id=sedes[1].id, student_id=students[3].id,
+             origin="Dr. Luis Felipe Segura Chávez — Director, Escuela Profesional de Medicina",
+             destination=("Dra. Lili Fernández Molocho\nDecana de la Facultad de Ciencias de la Salud\n"
+                          "Universidad Peruana Unión"),
+             subject=("Comunicación de renuncia a plaza de Internado Médico y solicitud de "
+                      "gestión ante la instancia competente."),
+             summary="Comunica la renuncia formal de una interna a su plaza de internado.",
+             body=("De mi mayor consideración:\n\n"
+                   "Me dirijo a usted para saludarle cordialmente y, a la vez, comunicar que la "
+                   f"interna {students[3].full_name}, alumna de la Escuela Profesional de Medicina, "
+                   "quien se encontraba realizando el Internado Médico en la sede asignada, ha "
+                   "presentado formalmente su solicitud de renuncia a la plaza de internado "
+                   "adjudicada, adjuntando los fundamentos correspondientes.\n\n"
+                   "En ese sentido, solicitamos realizar las coordinaciones y trámites "
+                   "administrativos pertinentes ante las instancias competentes, conforme a la "
+                   "normativa vigente y los procedimientos institucionales establecidos.\n\n"
+                   "Asimismo, se adjunta la documentación presentada por la alumna para los fines "
+                   "administrativos correspondientes.\n\n"
+                   "Sin otro particular, hago propicia la oportunidad para expresarle las muestras "
+                   "de mi especial consideración y estima personal."))
+
+        # Change-of-sede request originated by the demo student (draft).
+        _doc(8, title="Solicitud de cambio de sede", doc_type="sede_change",
+             status=DocumentStatus.DRAFT.value, created_by_user_id=student_uid,
+             student_id=students[0].id, sede_id=students[0].sede_id,
+             origin=students[0].full_name, destination="Coordinación de Internado UPeU",
+             subject="Solicitud de cambio de sede de internado",
+             body="Solicito el cambio de sede por motivos debidamente sustentados.")
+
+        # Overdue document: submitted long ago, still in review.
+        _doc(9, title="Permiso pendiente de gestión", doc_type="permission",
+             status=DocumentStatus.SUBMITTED.value, priority=DocumentPriority.HIGH.value,
+             submitted_by_user_id=sede_coord_id, submitted_at=now - timedelta(days=20),
+             due_date=TODAY - timedelta(days=2), sede_id=sedes[0].id, student_id=students[4].id,
+             subject="Solicitud de permiso", body="Solicitud de permiso pendiente de decisión.")
+
+        # -- Batch 2E: incidents (every severity/status) -----------------
+        def _inc(seq, **kw):
+            code = f"INC-{year}-{seq:04d}"
+            # Default reporter is the University Coordinator (a global viewer),
+            # so scope isolation between sedes is not accidentally widened by the
+            # "reporter can always view" rule.
+            kw.setdefault("reported_by_user_id", uni_id)
+            kw.setdefault("reported_by", "Coordinación de Internado")
+            kw.setdefault("report_date", TODAY)
+            kw.setdefault("visibility", VisibilityLevel.NORMAL.value)
+            i = Incident(code=code, seq_year=year, seq_number=seq, **kw)
+            db.add(i); db.flush()
+            db.add(StatusHistory(owner_type=OWNER_INCIDENT, owner_id=i.id, from_status=None,
+                                 to_status=IncidentStatus.OPEN.value, action="create",
+                                 actor_user_id=kw.get("reported_by_user_id"), actor_label="seed"))
+            return i
+
+        _inc(1, title="Retraso en credenciales de acceso",
+             description="Dos internos reportan demora en la emisión de credenciales en la sede.",
+             incident_type="other", severity=IncidentSeverity.LOW.value,
+             status=IncidentStatus.OPEN.value, sede_id=sedes[3].id)
+
+        _inc(2, title="Tardanzas reiteradas en la rotación",
+             description="Se registran tardanzas reiteradas de un interno durante la última semana.",
+             incident_type="repeated_tardiness", severity=IncidentSeverity.HIGH.value,
+             status=IncidentStatus.UNDER_REVIEW.value, sede_id=sedes[0].id,
+             student_id=students[5].id, due_date=TODAY + timedelta(days=2))
+
+        _inc(3, title="Accidente con material punzocortante",
+             description="Interno sufre pinchazo con aguja durante procedimiento; se activa protocolo.",
+             incident_type="accident", severity=IncidentSeverity.CRITICAL.value,
+             status=IncidentStatus.ACTION_REQUIRED.value, sede_id=sedes[1].id,
+             student_id=students[6].id, due_date=TODAY + timedelta(days=1),
+             internal_notes="Seguimiento con salud ocupacional (nota interna).")
+
+        _inc(4, title="Queja de la sede por documentación",
+             description="La sede reporta documentación incompleta de un interno.",
+             incident_type="sede_complaint", severity=IncidentSeverity.MEDIUM.value,
+             status=IncidentStatus.RESOLVED.value, sede_id=sedes[0].id, student_id=students[7].id,
+             resolution="Documentación regularizada y verificada con la sede.",
+             resolved_by_user_id=uni_id, resolved_at=now - timedelta(days=1))
+
+        _inc(5, title="Asunto de confidencialidad - salud",
+             description="Situación de salud del interno tratada de forma confidencial.",
+             incident_type="confidentiality", severity=IncidentSeverity.HIGH.value,
+             status=IncidentStatus.UNDER_REVIEW.value,
+             visibility=VisibilityLevel.CONFIDENTIAL.value, sede_id=sedes[1].id,
+             student_id=students[1].id, reported_by_user_id=uni_id,
+             internal_notes="Información sensible restringida a coordinación (nota interna).")
+
+        _inc(6, title="Incidencia vencida sin atención",
+             description="Incidencia con fecha límite vencida y aún sin resolver.",
+             incident_type="activity_noncompliance", severity=IncidentSeverity.MEDIUM.value,
+             status=IncidentStatus.UNDER_REVIEW.value, sede_id=sedes[0].id,
+             student_id=students[2].id, due_date=TODAY - timedelta(days=3))
+
+        # Set numbering counters so live allocation continues after seeded codes.
+        db.add(DocumentSequence(kind="document", year=year, last_value=9))
+        db.add(DocumentSequence(kind="incident", year=year, last_value=6))
+
+        # -- Batch 2F: grade schemes (null weights) + import batches -----
+        _seed_grades_and_imports(db, year, students, uni_coord, rt_cirugia, current_period)
+        db.add(DocumentSequence(kind="import", year=year, last_value=3))
 
         db.commit()
         _print_summary(db)
@@ -672,6 +858,176 @@ def seed(reset: bool = False) -> None:  # noqa: C901 - linear seed reads clearer
 # --------------------------------------------------------------------------
 # Helpers
 # --------------------------------------------------------------------------
+def _seed_grades_and_imports(db, year, students, uni_coord, rt_cirugia, current_period) -> None:
+    """Seed grade schemes (null weights), example blank-vs-zero scores and a
+    couple of import batches (one confirmed, one with errors, one grade preview)."""
+    import json as _json
+
+    # -- Grade scheme with UNCONFIRMED (null) weights --------------------
+    scheme = GradeScheme(
+        code=f"GS-CIR-{year}", name=f"Internado en Cirugía {year}",
+        rotation_type_id=rt_cirugia.id, period_id=current_period.id, version=1,
+        status=GradeSchemeStatus.ACTIVE.value, weights_confirmed=False,
+        notes="Pesos pendientes de confirmación oficial (no se calcula nota final).")
+    db.add(scheme); db.flush()
+    comps = [
+        GradeComponentDefinition(scheme_id=scheme.id, name="Actitudinal",
+                                 category="actitudinal", is_required=True, weight_percent=None,
+                                 source="QX 2026", display_order=1),
+        GradeComponentDefinition(scheme_id=scheme.id, name="Examen escrito",
+                                 category="examen_escrito", is_required=True, weight_percent=None,
+                                 source="QX 2026", display_order=2),
+        GradeComponentDefinition(scheme_id=scheme.id, name="Portafolio",
+                                 category="portafolio", is_required=False, weight_percent=None,
+                                 source="PORTAFOLIOS", display_order=3),
+    ]
+    db.add_all(comps); db.flush()
+
+    # A second scheme (foundation for the future agent).
+    scheme2 = GradeScheme(
+        code=f"GS-RMQ3-{year}", name=f"Revisión Médico Quirúrgica III {year}",
+        period_id=current_period.id, version=1, status=GradeSchemeStatus.DRAFT.value,
+        weights_confirmed=False)
+    db.add(scheme2); db.flush()
+    db.add(GradeComponentDefinition(scheme_id=scheme2.id, name="Examen final",
+                                    category="examen_final" if False else "examen_escrito",
+                                    is_required=True, weight_percent=None, display_order=1))
+    db.flush()
+
+    # -- Example BLANK vs ZERO scores ------------------------------------
+    # student[0]: Actitudinal = 0 (real zero), Examen escrito = 15, Portafolio = blank (null).
+    sg_zero = StudentGradeComponent(
+        student_id=students[0].id, scheme_id=scheme.id, component_id=comps[0].id,
+        score=0.0, status=GradeComponentStatus.IMPORTED.value, source_type="import",
+        source_sheet="QX 2026", source_row=2, source_col="Actitudinal",
+        entered_by_user_id=uni_coord.id)
+    sg_val = StudentGradeComponent(
+        student_id=students[0].id, scheme_id=scheme.id, component_id=comps[1].id,
+        score=15.0, status=GradeComponentStatus.APPROVED.value, source_type="import",
+        source_sheet="QX 2026", source_row=2, source_col="Examen escrito",
+        entered_by_user_id=uni_coord.id, approved_by_user_id=uni_coord.id, approved_at=utcnow())
+    sg_blank = StudentGradeComponent(
+        student_id=students[0].id, scheme_id=scheme.id, component_id=comps[2].id,
+        score=None, status=GradeComponentStatus.IMPORTED.value, source_type="import",
+        source_sheet="PORTAFOLIOS", source_row=2, source_col="Portafolio",
+        entered_by_user_id=uni_coord.id)  # blank = not registered (distinct from 0)
+    db.add_all([sg_zero, sg_val, sg_blank]); db.flush()
+    for sg, new in ((sg_zero, 0.0), (sg_val, 15.0), (sg_blank, None)):
+        db.add(GradeComponentHistory(student_grade_component_id=sg.id, old_score=None,
+                                     new_score=new, old_status=None, new_status=sg.status,
+                                     action="import_created", actor_user_id=uni_coord.id,
+                                     actor_label="seed"))
+
+    # -- Import batches (history) ----------------------------------------
+    # A successful student import.
+    b_ok = ImportBatch(
+        code=f"IMP-{year}-0001", profile="students", original_filename="internos_demo.xlsx",
+        stored_filename=None, sheet_name="Alumnos", mode=ImportMode.CREATE_ONLY.value,
+        status=ImportStatus.CONFIRMED.value,
+        mapping_json=_json.dumps({"student_code": "Código", "full_name": "Nombre",
+                                  "document_id": "DNI/CE"}, ensure_ascii=False),
+        total_rows=2, valid_rows=2, created_count=2, created_by_user_id=uni_coord.id,
+        confirmed_by_user_id=uni_coord.id, confirmed_at=utcnow())
+    db.add(b_ok); db.flush()
+    db.add_all([
+        ImportRow(batch_id=b_ok.id, row_number=1, source_sheet="Alumnos",
+                  raw_json=_json.dumps({"Código": "2026D01"}), status="created", action="create"),
+        ImportRow(batch_id=b_ok.id, row_number=2, source_sheet="Alumnos",
+                  raw_json=_json.dumps({"Código": "2026D02"}), status="created", action="create"),
+    ])
+
+    # An import with errors (partial).
+    b_err = ImportBatch(
+        code=f"IMP-{year}-0002", profile="students", original_filename="internos_con_errores.xlsx",
+        stored_filename=None, sheet_name="Alumnos", mode=ImportMode.VALID_ONLY.value,
+        status=ImportStatus.PARTIAL.value,
+        mapping_json=_json.dumps({"student_code": "Código"}, ensure_ascii=False),
+        total_rows=2, valid_rows=1, error_rows=1, created_count=1, failed_count=1,
+        created_by_user_id=uni_coord.id, confirmed_by_user_id=uni_coord.id, confirmed_at=utcnow())
+    db.add(b_err); db.flush()
+    db.add_all([
+        ImportRow(batch_id=b_err.id, row_number=1, source_sheet="Alumnos",
+                  raw_json=_json.dumps({"Código": "2026D03"}), status="created", action="create"),
+        ImportRow(batch_id=b_err.id, row_number=2, source_sheet="Alumnos",
+                  raw_json=_json.dumps({"Código": ""}), status="failed", action=None,
+                  messages_json=_json.dumps([{"level": "error", "field": "student_code",
+                                              "message": "El código es obligatorio."}])),
+    ])
+
+    # A grade import PREVIEW (validated, awaiting confirmation).
+    b_grade = ImportBatch(
+        code=f"IMP-{year}-0003", profile="grade_components", original_filename="notas_qx_2026.xlsx",
+        stored_filename=None, sheet_name="QX 2026", mode=ImportMode.CREATE_ONLY.value,
+        status=ImportStatus.VALIDATED.value,
+        mapping_json=_json.dumps({"student_key": "DNI/CE", f"comp_{comps[0].id}": "Actitudinal",
+                                  "_scheme_id": str(scheme.id)}, ensure_ascii=False),
+        total_rows=1, valid_rows=1, created_by_user_id=uni_coord.id)
+    db.add(b_grade); db.flush()
+    db.add(ImportRow(batch_id=b_grade.id, row_number=1, source_sheet="QX 2026",
+                     raw_json=_json.dumps({"DNI/CE": students[1].student_code, "Actitudinal": 0}),
+                     status="valid", action="create"))
+    db.flush()
+
+
+def _seed_document_templates(db) -> None:
+    """Seed reusable document templates (editable drafts, never auto-approved)."""
+    templates = [
+        DocumentTemplate(
+            code="tpl_resignation", name="Renuncia al internado", doc_type="resignation",
+            subject_template="Comunicación de renuncia a plaza de Internado Médico",
+            description="Estructura formal basada en la carta de referencia.",
+            body_template=(
+                "De mi mayor consideración:\n\n"
+                "Me dirijo a usted para saludarle cordialmente y comunicar que el/la interno(a) "
+                "[NOMBRE], alumno(a) de la Escuela Profesional de Medicina, quien se encontraba "
+                "realizando el Internado Médico en [SEDE], ha presentado formalmente su solicitud "
+                "de renuncia a la plaza de internado adjudicada, adjuntando los fundamentos "
+                "correspondientes.\n\n"
+                "En ese sentido, solicitamos realizar las coordinaciones y trámites administrativos "
+                "pertinentes ante las instancias competentes, conforme a la normativa vigente.\n\n"
+                "Asimismo, se adjunta la documentación presentada para los fines correspondientes.\n\n"
+                "Sin otro particular, quedo de usted.")),
+        DocumentTemplate(
+            code="tpl_sede_change", name="Cambio de sede", doc_type="sede_change",
+            subject_template="Solicitud de cambio de sede de internado",
+            description="Solicitud de cambio de sede.",
+            body_template=(
+                "De mi mayor consideración:\n\n"
+                "Solicito el cambio de sede de internado de [SEDE_ACTUAL] a [SEDE_DESTINO], "
+                "por los motivos que expongo a continuación:\n\n[MOTIVOS]\n\n"
+                "Agradezco la atención a la presente solicitud.")),
+        DocumentTemplate(
+            code="tpl_rotation_change", name="Cambio de rotación", doc_type="rotation_change",
+            subject_template="Solicitud de cambio de rotación",
+            description="Solicitud de cambio de rotación.",
+            body_template=(
+                "De mi mayor consideración:\n\n"
+                "Solicito el cambio de rotación de [ROTACION_ACTUAL] a [ROTACION_DESTINO], "
+                "por los siguientes motivos:\n\n[MOTIVOS]\n\nQuedo atento(a) a su respuesta.")),
+        DocumentTemplate(
+            code="tpl_incident_report", name="Informe de incidente", doc_type="incident_report",
+            subject_template="Informe de incidente",
+            description="Informe formal de un incidente.",
+            body_template=(
+                "Por medio del presente informo el siguiente incidente:\n\n"
+                "- Fecha: [FECHA]\n- Interno(a): [NOMBRE]\n- Sede: [SEDE]\n"
+                "- Descripción: [DESCRIPCION]\n- Acciones tomadas: [ACCIONES]\n\n"
+                "Se remite para su conocimiento y gestión correspondiente.")),
+        DocumentTemplate(
+            code="tpl_official_communication", name="Comunicación oficial",
+            doc_type="official_communication",
+            subject_template="Comunicación oficial",
+            description="Comunicación oficial institucional.",
+            body_template=(
+                "De mi mayor consideración:\n\n[CONTENIDO]\n\n"
+                "Sin otro particular, hago propicia la oportunidad para expresarle las muestras "
+                "de mi especial consideración.")),
+    ]
+    db.add_all(templates)
+    db.flush()
+
+
+
 def _add_criteria(db, evaluation: Evaluation, scored: bool = False) -> None:
     """Attach the 15 official criteria to an evaluation."""
     for area, items in EVAL_CRITERIA.items():

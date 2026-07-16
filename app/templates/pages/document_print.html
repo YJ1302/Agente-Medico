@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>{{ doc.code }} · {{ doc.title }}</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <style>
+    body { padding: 40px 60px; background:#fff; color:#111; max-width:900px; margin:auto; }
+    .letter-head { text-align:center; margin-bottom:24px; }
+    .letter-head h2 { margin:0; font-size:16px; letter-spacing:.5px; }
+    .letter-head p { margin:2px 0; font-size:13px; color:#555; }
+    .meta-right { text-align:right; font-size:13px; margin-bottom:6px; }
+    .doc-no { font-weight:800; margin:10px 0; }
+    .recipient { font-weight:700; margin:14px 0 4px; white-space:pre-wrap; }
+    .subject { font-weight:700; margin:10px 0; }
+    .body { white-space:pre-wrap; line-height:1.6; margin:14px 0; text-align:justify; }
+    .closing { margin-top:24px; }
+    .sign { text-align:center; margin-top:60px; }
+    .disclaimer { font-size:11px; color:#777; margin-top:40px; border-top:1px solid #ddd; padding-top:10px; }
+    @media print { .no-print { display:none; } body { padding:0; } }
+  </style>
+</head>
+<body>
+  <div class="no-print" style="text-align:right;margin-bottom:12px">
+    <button class="btn btn-primary" onclick="window.print()">Imprimir</button>
+    <a class="btn btn-light" href="/documents/{{ doc.id }}">Volver</a>
+  </div>
+
+  <div class="letter-head">
+    <h2>UNIVERSIDAD PERUANA UNIÓN</h2>
+    <p>ESCUELA PROFESIONAL DE MEDICINA</p>
+  </div>
+
+  <div class="meta-right">Ñaña, Lima, {{ doc.created_at.strftime('%d/%m/%Y') }}</div>
+  <div class="doc-no">DOCUMENTO N° {{ doc.code }}</div>
+
+  <div class="recipient">{{ doc.destination or 'Destinatario institucional' }}</div>
+  <div class="subject">Asunto: {{ doc.subject or doc.title }}</div>
+  <div style="font-size:12px;color:#666">Tipo: {{ type_label }} · Estado: {{ doc.status }} · Prioridad: {{ doc.priority }}</div>
+
+  <p style="margin-top:16px">De mi mayor consideración:</p>
+
+  {% if doc.student or doc.sede %}
+  <p style="font-size:13px;color:#444">
+    {% if doc.student %}Interno(a): <strong>{{ doc.student.full_name }}</strong>{% endif %}
+    {% if doc.sede %} · Sede: <strong>{{ doc.sede.short_name or doc.sede.name }}</strong>{% endif %}
+  </p>
+  {% endif %}
+
+  <div class="body">{{ doc.body or doc.summary or '' }}</div>
+
+  <div class="closing">
+    <p>Sin otro particular, quedo de usted.</p>
+    <p>Atentamente,</p>
+  </div>
+  <div class="sign">
+    ________________________________<br>
+    {{ doc.origin or 'Firma autorizada' }}
+  </div>
+
+  <div class="disclaimer">
+    Documento generado por UPeU Internado 360 para gestión interna. Requiere revisión y aprobación humana;
+    no constituye un envío automático. La revisión legal/institucional es obligatoria antes de su uso oficial.
+  </div>
+</body>
+</html>

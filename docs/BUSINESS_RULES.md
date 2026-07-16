@@ -193,3 +193,35 @@ University Administrator
 
 - **BR-28** No real patient clinical information may be stored. All demo data is
   fictional/anonymized.
+
+---
+
+## Batch 2E — Documents & Incidents business rules
+
+- **BR-2E-1** Document lifecycle: `draft → submitted → under_review → approved | rejected`; `rejected → draft`; `approved → archived`. Reopen (approved/archived → draft) is Administrator-only and requires a reason.
+- **BR-2E-2** Documents are editable only as drafts; other statuses are locked.
+- **BR-2E-3** Rejection requires a reason; archiving requires confirmation.
+- **BR-2E-4** No document is sent automatically; human approval is always required.
+- **BR-2E-5** Document/incident codes are server-generated, unique and sequential per year (`DOC-YYYY-NNNN` / `INC-YYYY-NNNN`); not user-editable.
+- **BR-2E-6** Incident lifecycle: `open → under_review → action_required → resolved → closed`; `under_review → dismissed`; Administrator reopen of resolved/closed.
+- **BR-2E-7** Resolving an incident requires comments; closing requires a resolution; dismissal and reopen require a reason.
+- **BR-2E-8** High and critical incidents generate alerts; critical incidents appear prominently on authorized dashboards.
+- **BR-2E-9** Document and incident history (`status_history`) is append-only and never silently overwritten; every transition is audited.
+- **BR-2E-10** Attachments accept only PDF/DOCX/XLSX/XLSM/PNG/JPG, validated by extension + MIME + magic bytes; stored outside the public folder; downloaded only via authorized routes; deletable only while draft/open (Administrator override with reason). No patient-identifying clinical records.
+- **BR-2E-11** Reports apply role scope before generating data and never include patient information.
+
+---
+
+## Batch 2F — Bulk import & academic grade rules
+
+- **BR-2F-1** No file is imported automatically; every import requires an explicit human confirmation after validation.
+- **BR-2F-2** Only `.xlsx` and `.xlsm` are accepted; files are validated (extension, MIME, size, readability, malformed workbook, duplicate sheets) and stored outside the public folder, then deleted after import.
+- **BR-2F-3** Imports reuse the existing entity validators and the rotation conflict engine — no business rule is bypassed.
+- **BR-2F-4** `all_or_nothing` writes nothing if any row has an error (single transaction); `valid_only` imports valid rows and skips the rest.
+- **BR-2F-5** A confirmation is rejected if the file or mapping changed since validation (stale-confirmation guard); a validated batch can be confirmed only once.
+- **BR-2F-6** Re-imports are idempotent under `skip_duplicates`/`update_existing`.
+- **BR-2F-7** Grade component `weight_percent` may be null; **no final grade is calculated until `weights_confirmed` is true and every required component has a weight**. Until then the UI shows "Fórmula pendiente de confirmación".
+- **BR-2F-8** A blank grade cell is stored as NULL (not registered) and kept distinct from a real 0; a blank never erases an existing value.
+- **BR-2F-9** Grade scores must be within 0–max (default 0–20); out-of-range values are rejected.
+- **BR-2F-10** An existing approved grade component is never overwritten silently; a confirmed update records history + audit and returns the component to `imported` for re-approval.
+- **BR-2F-11** Every imported grade component preserves its source batch, sheet, row and column.

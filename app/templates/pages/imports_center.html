@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% set st_tone = {'uploaded':'muted','mapped':'info','validated':'warning','confirmed':'success','partial':'warning','cancelled':'muted','failed':'danger'} %}
+{% set st_label = {'uploaded':'Subido','mapped':'Mapeado','validated':'Validado','confirmed':'Confirmado','partial':'Parcial','cancelled':'Cancelado','failed':'Fallido'} %}
+
+{% block content %}
+<div class="page-head"><h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1><p>{{ page_subtitle }}</p></div>
+
+<div class="flash flash-info" style="margin-bottom:16px"><i class="bi bi-shield-check"></i>
+  <span>Ningún archivo se importa automáticamente. Cada importación pasa por validación y una confirmación humana explícita.</span></div>
+
+<div class="card" style="margin-bottom:18px">
+  <div class="card-head"><h3><i class="bi bi-collection"></i> Perfiles de importación</h3></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px">
+    {% for p in profiles %}
+    <a class="card" style="text-decoration:none;display:block" href="/imports/new?profile={{ p.code }}">
+      <div style="display:flex;align-items:center;gap:10px">
+        <i class="bi bi-file-earmark-arrow-up" style="font-size:1.6em;color:var(--navy)"></i>
+        <div><strong>{{ p.label }}</strong><br>
+          <small style="color:var(--text-muted)">{{ p.fields|length }} columna(s) · clave: {{ p.unique_field }}</small></div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head" style="display:flex;justify-content:space-between;align-items:center">
+    <h3><i class="bi bi-clock-history"></i> Importaciones recientes</h3>
+    <div style="display:flex;gap:8px">
+      <a class="btn btn-outline btn-sm" href="/grades/cross-sheet-check"><i class="bi bi-diagram-2"></i> Verificación entre hojas</a>
+      <a class="btn btn-outline btn-sm" href="/imports/history">Ver historial</a>
+    </div>
+  </div>
+  {% if batches %}
+  <div class="table-scroll"><table class="data">
+    <thead><tr><th>Código</th><th>Perfil</th><th>Archivo</th><th>Estado</th><th>Creado/Actualizado</th><th></th></tr></thead>
+    <tbody>
+      {% for b in batches %}
+      <tr>
+        <td><strong>{{ b.code }}</strong></td>
+        <td>{{ b.profile }}</td>
+        <td>{{ b.original_filename }}</td>
+        <td><span class="chip chip-{{ st_tone.get(b.status,'muted') }}">{{ st_label.get(b.status, b.status) }}</span></td>
+        <td>{{ b.updated_at.strftime('%d/%m/%Y %H:%M') }}</td>
+        <td><a class="btn btn-outline btn-sm" href="/imports/{{ b.id }}"><i class="bi bi-eye"></i></a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}
+  <div class="empty-state"><div class="es-icon"><i class="bi bi-inbox"></i></div><p>Aún no hay importaciones.</p></div>
+  {% endif %}
+</div>
+{% endblock %}

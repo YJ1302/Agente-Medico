@@ -140,3 +140,45 @@ scope, status transitions, dashboard scoping) — all with CSRF and audit checks
 - Alembic migrations for schema evolution and the PostgreSQL move.
 - `pytest` suite (unit tests for services/rules; route smoke tests).
 - Linting/formatting (ruff/black) and pre-commit hooks.
+
+---
+
+## Batch 2E — running documents/incidents/reports
+
+New runtime dependencies (already in `requirements.txt`): `openpyxl`, `fpdf2`
+(pure-Python; pulls Pillow + fonttools). Install with `pip install -r requirements.txt`.
+
+Migration: `alembic upgrade head` (revision `b2e4d9c17a05`). Rebuild demo data:
+`python -m app.seed --reset`.
+
+Attachment storage dir (`var/attachments/`, outside `app/static`) is created on
+first upload; configurable via `ATTACHMENT_STORAGE_DIR` / `ATTACHMENT_MAX_MB`.
+
+Key modules: `app/services/{document,incident,attachment,report,export}_service.py`,
+`app/services/numbering.py`, `app/routes/{document,incident,report}_routes.py`,
+`app/agents/incident_monitoring_agent.py`.
+
+Tests: `pytest tests/test_documents.py tests/test_attachments.py
+tests/test_incidents.py tests/test_reports.py tests/test_2e_security.py`.
+
+---
+
+## Batch 2F — bulk import & grades
+
+Runtime deps unchanged (`openpyxl` already present; `.xlsm` read via openpyxl).
+Migration: `alembic upgrade head` (revision `c3f7a1b9d2e6`). Rebuild demo data:
+`python -m app.seed --reset`.
+
+Config: `IMPORT_MAX_MB` (8), `IMPORT_MAX_ROWS` (2000), `IMPORT_STORAGE_DIR`
+(`var/imports`, outside static), `IMPORT_RETAIN_FILES` (false).
+
+Key modules: `app/services/{excel_reader,import_profiles,import_service,grade_service,numbering}.py`,
+`app/routes/{import,grade}_routes.py`, models `app/models/{imports,grades}.py`.
+
+Tests: `pytest tests/test_imports.py tests/test_grade_imports.py`.
+
+Extending: add an import profile by subclassing `ImportProfile` in
+`import_profiles.py` (declare `fields`, `unique_field`, `allowed_roles`, and
+implement `resolve/find_existing/validate/apply`) and register it in
+`_MASTER_PROFILES` (or via `get_profile` for domain profiles). Reuse an existing
+service `_validate` in `validate()` so business rules stay authoritative.

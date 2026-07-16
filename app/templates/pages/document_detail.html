@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import csrf_field %}
+{% block title %}{{ doc.code }}{% endblock %}
+
+{% set status_tone = {'draft':'muted','submitted':'info','under_review':'warning','approved':'success','rejected':'danger','archived':'muted'} %}
+{% set status_label = {'draft':'Borrador','submitted':'Enviado','under_review':'En revisión','approved':'Aprobado','rejected':'Rechazado','archived':'Archivado'} %}
+{% set action_label = {'create':'Creación','submit':'Envío','start_review':'Inicio de revisión','approve':'Aprobación','reject':'Rechazo','return_to_draft':'Devuelto a borrador','archive':'Archivado','reopen':'Reapertura'} %}
+
+{% block content %}
+<div class="page-head" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+  <div>
+    <h1><i class="bi bi-file-earmark-text"></i> {{ doc.code }}</h1>
+    <p>{{ doc.title }}</p>
+  </div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+    <span class="chip chip-{{ status_tone.get(doc.status,'muted') }}">{{ status_label.get(doc.status, doc.status) }}</span>
+    {% if doc.visibility == 'confidential' %}<span class="chip chip-danger"><i class="bi bi-shield-lock"></i> Confidencial</span>
+    {% elif doc.visibility == 'restricted' %}<span class="chip chip-warning"><i class="bi bi-eye-slash"></i> Restringido</span>{% endif %}
+    <a class="btn btn-outline btn-sm" href="/documents/{{ doc.id }}/print" target="_blank"><i class="bi bi-printer"></i></a>
+    <a class="btn btn-outline btn-sm" href="/documents/{{ doc.id }}/pdf" target="_blank"><i class="bi bi-file-pdf"></i> PDF</a>
+  </div>
+</div>
+
+<nav class="breadcrumbs" style="margin-bottom:12px">
+  <a href="/documents">Documentos</a> <i class="bi bi-chevron-right"></i> <span>{{ doc.code }}</span>
+</nav>
+
+{# ---- Action bar (workflow) ---- #}
+<div class="card" style="margin-bottom:16px">
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    {% if can_edit %}<a class="btn btn-outline btn-sm" href="/documents/{{ doc.id }}/edit"><i class="bi bi-pencil"></i> Editar</a>{% endif %}
+    {% if can_submit %}
+    <form method="post" action="/documents/{{ doc.id }}/submit" onsubmit="return confirm('¿Enviar el documento para revisión?')">{{ csrf_field(csrf_token) }}
+      <button class="btn btn-primary btn-sm"><i class="bi bi-send"></i> Enviar</button></form>{% endif %}
+    {% if can_review_flow %}
+    <form method="post" action="/documents/{{ doc.id }}/review">{{ csrf_field(csrf_token) }}
+      <button class="btn btn-primary btn-sm"><i class="bi bi-search"></i> Iniciar revisión</button></form>{% endif %}
+    {% if can_decide %}
+    <button class="btn btn-success btn-sm" type="button" onclick="document.getElementById('approveBox').style.display='block'"><i class="bi bi-check2-circle"></i> Aprobar</button>
+    <button class="btn btn-danger btn-sm" type="button" onclick="document.getElementById('rejectBox').style.display='block'"><i class="bi bi-x-circle"></i> Rechazar</button>{% endif %}
+    {% if doc.status == 'rejected' and (can_edit or can_reopen or identity.role_code in ['admin','university_coordinator','sede_coordinator']) %}
+    <form method="post" action="/documents/{{ doc.id }}/return">{{ csrf_field(csrf_token) }}
+      <button class="btn btn-outline btn-sm"><i class="bi bi-arrow-counterclockwise"></i> Volver a borrador</button></form>{% endif %}
+    {% if can_archive %}
+    <form method="post" action="/documents/{{ doc.id }}/archive" onsubmit="return confirm('¿Archivar este documento aprobado?')">{{ csrf_field(csrf_token) }}
+      <button class="btn btn-outline btn-sm"><i class="bi bi-archive"></i> Archivar</button></form>{% endif %}
+    {% if can_reopen %}
+    <button class="btn btn-outline btn-sm" type="button" onclick="document.getElementById('reopenBox').style.display='block'"><i class="bi bi-unlock"></i> Reabrir</button>{% endif %}
+    {% if not (can_edit or can_submit or can_review_flow or can_decide or can_archive or can_reopen) %}
+    <span style="color:var(--text-muted)"><i class="bi bi-lock"></i> Sin acciones disponibles en este estado para su rol.</span>{% endif %}
+  </div>
+
+  <div id="approveBox" style="display:none;margin-top:12px">
+    <form method="post" action="/documents/{{ doc.id }}/approve">{{ csrf_field(csrf_token) }}
+      <label>Comentario (opcional)</label>
+      <input class="form-control" name="note" placeholder="Observación de aprobación">
+      <div style="margin-top:8px"><button class="btn btn-success btn-sm"><i class="bi bi-check2"></i> Confirmar aprobación</button></div>
+    </form>
+  </div>
+  <div id="rejectBox" style="display:none;margin-top:12px">
+    <form method="post" action="/documents/{{ doc.id }}/reject">{{ csrf_field(csrf_token) }}
+      <label>Motivo del rechazo <span class="req">*</span></label>
+      <textarea class="form-control" name="reason" rows="2" required></textarea>
+      <div style="margin-top:8px"><button class="btn btn-danger btn-sm"><i class="bi bi-x-circle"></i> Confirmar rechazo</button></div>
+    </form>
+  </div>
+  <div id="reopenBox" style="display:none;margin-top:12px">
+    <form method="post" action="/documents/{{ doc.id }}/reopen">{{ csrf_field(csrf_token) }}
+      <label>Motivo de reapertura (Administrador) <span class="req">*</span></label>
+      <textarea class="form-control" name="reason" rows="2" required></textarea>
+      <div style="margin-top:8px"><button class="btn btn-outline btn-sm"><i class="bi bi-unlock"></i> Confirmar reapertura</button></div>
+    </form>
+  </div>
+</div>
+
+{% if doc.status == 'rejected' and doc.rejection_reason %}
+<div class="flash flash-danger" style="margin-bottom:16px"><i class="bi bi-x-circle"></i>
+  <span><strong>Rechazado:</strong> {{ doc.rejection_reason }}</span></div>
+{% endif %}
+
+<div class="tabs" data-tabs>
+  <div class="tab active" data-tab="resumen">Resumen</div>
+  <div class="tab" data-tab="contenido">Contenido</div>
+  <div class="tab" data-tab="adjuntos">Adjuntos ({{ attachments|length }})</div>
+  <div class="tab" data-tab="flujo">Flujo</div>
+  <div class="tab" data-tab="historial">Historial</div>
+  <div class="tab" data-tab="auditoria">Auditoría</div>
+</div>
+
+{# ---- Resumen ---- #}
+<div data-panel="resumen" class="card">
+  <div class="table-scroll"><table class="data"><tbody>
+    <tr><th>Código</th><td>{{ doc.code }}</td><th>Tipo</th><td>{{ type_label }}</td></tr>
+    <tr><th>Estado</th><td>{{ status_label.get(doc.status, doc.status) }}</td><th>Prioridad</th><td>{{ doc.priority }}</td></tr>
+    <tr><th>Origen</th><td>{{ doc.origin or '—' }}</td><th>Destino</th><td>{{ doc.destination or '—' }}</td></tr>
+    <tr><th>Interno</th><td>{{ doc.student.full_name if doc.student else '—' }}</td><th>Sede</th><td>{{ (doc.sede.short_name or doc.sede.name) if doc.sede else '—' }}</td></tr>
+    <tr><th>Asunto</th><td colspan="3">{{ doc.subject or '—' }}</td></tr>
+    <tr><th>Creado</th><td>{{ doc.created_at.strftime('%d/%m/%Y %H:%M') }}</td><th>Actualizado</th><td>{{ doc.updated_at.strftime('%d/%m/%Y %H:%M') }}</td></tr>
+  </tbody></table></div>
+</div>
+
+{# ---- Contenido ---- #}
+<div data-panel="contenido" class="card" style="display:none">
+  {% if doc.summary %}<h4>Resumen</h4><p style="white-space:pre-wrap">{{ doc.summary }}</p>{% endif %}
+  <h4>Cuerpo</h4>
+  <p style="white-space:pre-wrap">{{ doc.body or 'Sin contenido.' }}</p>
+  {% if can_see_internal and doc.internal_notes %}
+  <div class="flash flash-warning" style="margin-top:12px"><i class="bi bi-eye-slash"></i>
+    <span><strong>Notas internas (restringido):</strong><br>{{ doc.internal_notes }}</span></div>
+  {% endif %}
+</div>
+
+{# ---- Adjuntos ---- #}
+<div data-panel="adjuntos" class="card" style="display:none">
+  <div class="flash flash-info" style="margin-bottom:12px"><i class="bi bi-shield-exclamation"></i>
+    <span><strong>Aviso de privacidad:</strong> no adjunte historias clínicas ni datos que identifiquen a pacientes. Los archivos se almacenan de forma segura y solo se descargan mediante rutas autorizadas.</span></div>
+  {% if can_upload %}
+  <form method="post" action="/documents/{{ doc.id }}/attachments" enctype="multipart/form-data" style="margin-bottom:14px">
+    {{ csrf_field(csrf_token) }}
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input class="form-control" type="file" name="file" required style="max-width:360px"
+             accept=".pdf,.docx,.xlsx,.xlsm,.png,.jpg,.jpeg">
+      <button class="btn btn-primary btn-sm"><i class="bi bi-upload"></i> Subir</button>
+      <small style="color:var(--text-muted)">PDF, DOCX, XLSX, XLSM, PNG, JPG</small>
+    </div>
+  </form>
+  {% endif %}
+  {% if attachments %}
+  <div class="table-scroll"><table class="data">
+    <thead><tr><th>Archivo</th><th>Tipo</th><th>Tamaño</th><th>Subido</th><th></th></tr></thead>
+    <tbody>
+      {% for a in attachments %}
+      <tr>
+        <td><i class="bi bi-paperclip"></i> {{ a.original_filename }}</td>
+        <td><small>{{ a.mime_type }}</small></td>
+        <td>{{ (a.size_bytes / 1024)|round(1) }} KB</td>
+        <td>{{ a.created_at.strftime('%d/%m/%Y') }}</td>
+        <td style="display:flex;gap:6px">
+          <a class="btn btn-outline btn-sm" href="/documents/attachments/{{ a.id }}/download"><i class="bi bi-download"></i></a>
+          {% if can_upload or identity.role_code=='admin' %}
+          <form method="post" action="/documents/attachments/{{ a.id }}/delete" onsubmit="return confirm('¿Eliminar este adjunto?')">
+            {{ csrf_field(csrf_token) }}
+            {% if doc.status != 'draft' %}<input type="hidden" name="reason" value="Eliminación administrativa">{% endif %}
+            <button class="btn btn-danger btn-sm"><i class="bi bi-trash"></i></button>
+          </form>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}
+  <div class="empty-state"><div class="es-icon"><i class="bi bi-paperclip"></i></div><p>Sin adjuntos.</p></div>
+  {% endif %}
+</div>
+
+{# ---- Flujo ---- #}
+<div data-panel="flujo" class="card" style="display:none">
+  <h4>Ruta de comunicación formal</h4>
+  <p style="color:var(--text-muted)">Estudiante/Universidad → Unidad de Docencia del Hospital → Coordinador de Sede → Universidad. El Coordinador de Sede puede comunicarse directamente con la universidad cuando esté autorizado.</p>
+  <div class="table-scroll"><table class="data"><tbody>
+    <tr><th>Enviado por</th><td>{{ doc.submitted_by_user_id or '—' }} · {{ doc.submitted_at.strftime('%d/%m/%Y %H:%M') if doc.submitted_at else '—' }}</td></tr>
+    <tr><th>Revisado por</th><td>{{ doc.reviewed_by_user_id or '—' }} · {{ doc.reviewed_at.strftime('%d/%m/%Y %H:%M') if doc.reviewed_at else '—' }}</td></tr>
+    <tr><th>Aprobado por</th><td>{{ doc.approved_by_user_id or '—' }} · {{ doc.approved_at.strftime('%d/%m/%Y %H:%M') if doc.approved_at else '—' }}</td></tr>
+    <tr><th>Rechazado por</th><td>{{ doc.rejected_by_user_id or '—' }} · {{ doc.rejected_at.strftime('%d/%m/%Y %H:%M') if doc.rejected_at else '—' }}</td></tr>
+    <tr><th>Archivado</th><td>{{ doc.archived_at.strftime('%d/%m/%Y %H:%M') if doc.archived_at else '—' }}</td></tr>
+  </tbody></table></div>
+</div>
+
+{# ---- Historial ---- #}
+<div data-panel="historial" class="card" style="display:none">
+  {% if history %}
+  <div class="timeline">
+    {% for h in history %}
+    <div class="timeline-item">
+      <div class="timeline-dot"></div>
+      <div>
+        <strong>{{ action_label.get(h.action, h.action) }}</strong>
+        <span class="chip chip-muted">{{ status_label.get(h.to_status, h.to_status) }}</span>
+        <div style="color:var(--text-muted);font-size:.85em">{{ h.created_at.strftime('%d/%m/%Y %H:%M') }} · {{ h.actor_label }}</div>
+        {% if h.note %}<div style="margin-top:4px">{{ h.note }}</div>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}<div class="empty-state"><p>Sin historial.</p></div>{% endif %}
+</div>
+
+{# ---- Auditoría ---- #}
+<div data-panel="auditoria" class="card" style="display:none">
+  {% if audit_rows %}
+  <div class="table-scroll"><table class="data">
+    <thead><tr><th>Fecha</th><th>Acción</th><th>Usuario</th></tr></thead>
+    <tbody>
+      {% for r in audit_rows %}
+      <tr><td>{{ r.created_at.strftime('%d/%m/%Y %H:%M') }}</td><td>{{ r.action }}</td><td>{{ r.actor_label }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}<div class="empty-state"><p>Sin registros de auditoría.</p></div>{% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="page-head" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+  <div><h1><i class="bi bi-{{ page_icon }}"></i> {{ result.title }}</h1><p>{{ page_subtitle }}</p></div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap">
+    <a class="btn btn-light btn-sm" href="/reports/export/{{ key }}.xlsx"><i class="bi bi-file-excel"></i> Excel</a>
+    <a class="btn btn-light btn-sm" href="/reports/export/{{ key }}.pdf"><i class="bi bi-file-pdf"></i> PDF</a>
+    <a class="btn btn-outline btn-sm" href="/reports"><i class="bi bi-arrow-left"></i> Volver</a>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:14px">
+  <div style="display:flex;gap:14px;flex-wrap:wrap;color:var(--text-muted);font-size:.9em">
+    {% for k, v in meta.items() %}<span><strong>{{ k }}:</strong> {{ v }}</span>{% endfor %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="result-count" style="margin-bottom:10px">{{ result.rows|length }} fila(s)</div>
+  {% if result.rows %}
+  <div class="table-scroll">
+    <table class="data">
+      <thead><tr>{% for h in result.headers %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        {% for row in result.rows %}
+        <tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state"><div class="es-icon"><i class="bi bi-inbox"></i></div><p>Sin datos para los filtros/ámbito seleccionados.</p></div>
+  {% endif %}
+</div>
+{% endblock %}

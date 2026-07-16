@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import csrf_field %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% set rs_tone = {'valid':'success','warning':'warning','error':'danger','skipped':'muted','created':'success','updated':'info','failed':'danger'} %}
+
+{% block content %}
+<div class="page-head"><h1><i class="bi bi-{{ page_icon }}"></i> {{ batch.code }} · Vista previa</h1>
+  <p>Hoja: <strong>{{ batch.sheet_name }}</strong> · Modo: {{ mode_labels.get(batch.mode, batch.mode) }}</p></div>
+
+<div class="tabs" style="margin-bottom:16px">
+  <div class="tab">1. Hoja</div><div class="tab">2. Mapeo</div>
+  <div class="tab active">3. Vista previa</div><div class="tab">4. Resultado</div>
+</div>
+
+<div class="card" style="margin-bottom:16px">
+  <div class="card-head"><h3><i class="bi bi-clipboard-data"></i> Resumen de validación</h3></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <span class="chip chip-muted">Total: {{ batch.total_rows }}</span>
+    <span class="chip chip-success">Válidas: {{ batch.valid_rows }}</span>
+    <span class="chip chip-warning">Advertencias: {{ batch.warning_rows }}</span>
+    <span class="chip chip-danger">Errores: {{ batch.error_rows }}</span>
+  </div>
+  {% if batch.error_rows %}
+  <p style="margin:10px 0 0"><a class="btn btn-outline btn-sm" href="/imports/{{ batch.id }}/errors.xlsx"><i class="bi bi-file-excel"></i> Descargar reporte de errores</a></p>
+  {% endif %}
+</div>
+
+<div class="card" style="margin-bottom:16px">
+  <div class="result-count" style="margin-bottom:10px">Mostrando hasta 300 fila(s)</div>
+  <div class="table-scroll">
+    <table class="data">
+      <thead><tr><th>Fila</th><th>Estado</th><th>Acción</th><th>Datos</th><th>Mensajes</th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>{{ r.row_number }}</td>
+          <td><span class="chip chip-{{ rs_tone.get(r.status,'muted') }}">{{ r.status }}</span></td>
+          <td>{{ r.action or '—' }}</td>
+          <td><small>{% for k, v in r.raw.items() %}{% if v %}<strong>{{ k }}:</strong> {{ v }} {% endif %}{% endfor %}</small></td>
+          <td><small>{% for m in r.messages %}<span class="chip chip-{{ 'danger' if m.level=='error' else 'warning' }}">{{ m.message }}</span> {% endfor %}</small></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h3><i class="bi bi-check2-all"></i> Confirmar importación</h3></div>
+  <p style="color:var(--text-muted)">La confirmación escribe los datos de forma transaccional. Si el archivo o el mapeo cambian, deberá validar nuevamente.</p>
+  <form method="post" action="/imports/{{ batch.id }}/confirm" onsubmit="return confirm('¿Confirmar la importación de {{ batch.code }}?')">
+    {{ csrf_field(csrf_token) }}
+    <input type="hidden" name="content_hash" value="{{ content_hash }}">
+    <button class="btn btn-success"><i class="bi bi-check2-circle"></i> Confirmar importación</button>
+    <a class="btn btn-outline" href="/imports/{{ batch.id }}/map">Ajustar mapeo</a>
+  </form>
+  <form method="post" action="/imports/{{ batch.id }}/cancel" style="margin-top:10px">{{ csrf_field(csrf_token) }}
+    <button class="btn btn-light btn-sm"><i class="bi bi-x-lg"></i> Cancelar importación</button></form>
+</div>
+{% endblock %}

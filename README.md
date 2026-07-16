@@ -83,9 +83,10 @@ alembic downgrade -1                             :: revert the last migration
 alembic current                                  :: show current revision
 ```
 
-Current head: `ca5acdae8455` (Batch 2D — evaluation workflow fields), on top of
-`e6118382e890` (Batch 2C), `0e5f841e0967` (Batch 2B), `7fb2a9a545a7`
-(Batch 2A) and baseline `407858b8a29f`.
+Current head: `c3f7a1b9d2e6` (Batch 2F — bulk import & academic grade
+foundation), on top of `b2e4d9c17a05` (Batch 2E), `ca5acdae8455` (Batch 2D),
+`e6118382e890` (Batch 2C), `0e5f841e0967` (Batch 2B), `7fb2a9a545a7` (Batch 2A)
+and baseline `407858b8a29f`.
 
 Operational modules implemented so far in Part 2: **Internos**, **Sedes**,
 **Coordinadores de Sede**, **Tutores**, **Rotaciones** (list + timeline +
@@ -93,8 +94,21 @@ conflict-validated CRUD + status workflow + tutor assignment + automatic pending
 evaluation), **Actividades** (official catalog from the 4 specialty documents +
 student entry log + tutor verification + progress tracking + coordinator
 monitoring), **Evaluaciones** (full 15-criterion scoring workflow with
-tutor→coordinator approval and server-authoritative totals) and **role-specific
-dashboards** for all 5 roles — all role-scoped, audited and CSRF-protected.
+tutor→coordinator approval and server-authoritative totals), **role-specific
+dashboards** for all 5 roles, and **Batch 2E — Documentos, Incidencias y
+Reportes**: formal document lifecycle (13 types, server-generated `DOC-YYYY-NNNN`
+codes, templates, formal PDF), incident management (13 types, 4 severities,
+critical alerts), secure local **attachments** (extension+MIME+magic-byte
+validated, stored outside the public folder), **14 reports** with Excel/PDF
+exports and a consolidated **student internship summary**, plus visibility levels
+(normal/restricted/confidential), and **Batch 2F — Importación masiva y notas
+académicas**: a safe Excel (.xlsx/.xlsm) bulk-import wizard (upload → sheet →
+column mapping → validate → preview → confirm → transactional import) for
+students, sedes, tutors, coordinators, rotations and grade components — with
+duplicate detection, import modes (incl. all-or-nothing), downloadable error
+reports and import history — plus the academic **grade foundation** (configurable
+schemes; **no final grade until weights are confirmed**; blank kept distinct from
+zero) — all role-scoped, audited and CSRF-protected.
 
 A top-bar **Traducir** button toggles the interface chrome between Spanish
 (default) and English, fully offline.
@@ -134,6 +148,14 @@ All project documentation lives in [`/docs`](docs/):
 - [SECURITY_AND_PRIVACY_RULES.md](docs/SECURITY_AND_PRIVACY_RULES.md)
 - [DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md)
 - [DEMO_GUIDE.md](docs/DEMO_GUIDE.md)
+- [DOCUMENT_WORKFLOW.md](docs/DOCUMENT_WORKFLOW.md)
+- [INCIDENT_WORKFLOW.md](docs/INCIDENT_WORKFLOW.md)
+- [REPORT_CATALOG.md](docs/REPORT_CATALOG.md)
+- [FILE_UPLOAD_SECURITY.md](docs/FILE_UPLOAD_SECURITY.md)
+- [EXCEL_IMPORT_WORKFLOW.md](docs/EXCEL_IMPORT_WORKFLOW.md)
+- [IMPORT_PROFILE_CATALOG.md](docs/IMPORT_PROFILE_CATALOG.md)
+- [GRADE_COMPONENT_MODEL.md](docs/GRADE_COMPONENT_MODEL.md)
+- [GRADE_IMPORT_RULES.md](docs/GRADE_IMPORT_RULES.md)
 - [CHANGELOG.md](docs/CHANGELOG.md)
 - [DECISIONS_LOG.md](docs/DECISIONS_LOG.md)
 
@@ -142,11 +164,13 @@ All project documentation lives in [`/docs`](docs/):
 ```bat
 python -m app.seed          # rebuild demo DB
 uvicorn app.main:app --reload
+python -m pytest -q          # automated suite — 198 tests
 ```
 
 Then verify: login for each role, the admin dashboard cards/charts, the Agents
-page ("Ejecutar todos"), and the Alerts page (4 seeded alerts). See
-[DEMO_GUIDE.md](docs/DEMO_GUIDE.md) for the full 5-minute script.
+page ("Ejecutar todos"), the Alerts page, and the Batch 2E **Documentos**,
+**Incidencias** and **Reportes** modules. See
+[DEMO_GUIDE.md](docs/DEMO_GUIDE.md) for the full script.
 
 ## License / status
 

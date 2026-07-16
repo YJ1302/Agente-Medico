@@ -92,3 +92,48 @@ modules can later be extracted if needed.
   cookies (already enabled when `is_production`).
 - Move secrets to a managed secret store; enable centralized logging and DB
   backups.
+
+---
+
+## Batch 2E — Documents, Incidents & Reports layer
+
+Same layered pattern (routes → services → repositories → models):
+
+- **Models** (`operations.py`): extended `DocumentRecord` / `Incident`; new
+  polymorphic `Attachment` and `StatusHistory`; `DocumentTemplate`;
+  `DocumentSequence` (numbering).
+- **Services**: `document_service.py`, `incident_service.py` (guard-clause
+  transitions, record-level scope, append-only history, alert refresh),
+  `attachment_service.py` (secure storage), `report_service.py` (14 reports,
+  scope-first), `export_service.py` (openpyxl + fpdf2 primitives, formal PDF),
+  `numbering.py` (concurrency-safe codes).
+- **Routes**: `document_routes.py`, `incident_routes.py`, `report_routes.py`
+  (thin controllers; POST+CSRF mutations only; the `/documents /incidents
+  /reports` Part 1 placeholders were removed).
+- **Agents**: enhanced deterministic `DocumentAgent`; new
+  `IncidentMonitoringAgent`; 8 new rule-engine rules feeding `AlertService`.
+- **Migration**: `b2e4d9c17a05`.
+
+Files stored under `var/attachments/` (outside `app/static`), served only via
+authorized routes.
+
+---
+
+## Batch 2F — Bulk import & grade foundation layer
+
+Same layered pattern:
+
+- **Models**: `imports.py` (`ImportBatch`, `ImportRow`), `grades.py` (`GradeScheme`,
+  `GradeComponentDefinition`, `StudentGradeComponent`, `GradeComponentHistory`).
+- **Services**: `excel_reader.py` (safe workbook reading/validation),
+  `import_profiles.py` (6 profiles reusing existing validators + rotation conflict
+  engine), `import_service.py` (upload→map→validate→confirm, single-transaction,
+  modes, stale/duplicate-confirmation guards, error report), `grade_service.py`
+  (grade-import profile + scheme viewing/approval; never computes a final grade
+  without confirmed weights), `numbering.py` (`IMP-YYYY-NNNN`).
+- **Routes**: `import_routes.py` (wizard), `grade_routes.py` (scheme matrix + approve).
+- **Migration**: `c3f7a1b9d2e6`.
+
+Uploaded files live under `var/imports/` (outside `app/static`), deleted after
+import. Grade imports flow through the generic `ImportBatch`/`ImportRow` pipeline
+(D-035) while the grade domain tables hold the persisted scores + history.

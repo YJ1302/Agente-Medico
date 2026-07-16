@@ -83,6 +83,10 @@ NAV_SECTIONS: list[NavSection] = [
             NavItem("Documentos", "/documents", "file-earmark-text"),
             NavItem("Incidencias", "/incidents", "exclamation-triangle"),
             NavItem("Reportes", "/reports", "bar-chart"),
+            NavItem("Importación", "/imports", "upload",
+                    roles={ROLE_ADMIN, ROLE_UNIVERSITY_COORDINATOR, ROLE_SEDE_COORDINATOR}),
+            NavItem("Notas académicas", "/grades", "123",
+                    roles={ROLE_ADMIN, ROLE_UNIVERSITY_COORDINATOR}),
         ],
     ),
     NavSection(

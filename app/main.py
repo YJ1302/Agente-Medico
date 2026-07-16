@@ -27,9 +27,14 @@ from app.routes import (
     auth_routes,
     coordinator_routes,
     dashboard_routes,
+    document_routes,
     evaluation_routes,
+    grade_routes,
+    import_routes,
+    incident_routes,
     pages_routes,
     profile_routes,
+    report_routes,
     rotation_routes,
     sede_routes,
     student_routes,
@@ -75,6 +80,11 @@ def create_app() -> FastAPI:
     app.include_router(rotation_routes.router)
     app.include_router(activity_routes.router)
     app.include_router(evaluation_routes.router)
+    app.include_router(document_routes.router)
+    app.include_router(incident_routes.router)
+    app.include_router(report_routes.router)
+    app.include_router(import_routes.router)
+    app.include_router(grade_routes.router)
     app.include_router(pages_routes.router)
     app.include_router(agent_routes.router)
     app.include_router(profile_routes.router)

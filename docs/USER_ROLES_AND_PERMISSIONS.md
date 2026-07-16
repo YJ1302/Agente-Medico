@@ -133,3 +133,70 @@ and Student dashboards never include global MINSA/EsSalud/intern totals.
 - One account per role for the demo; `Demo123!` password (bcrypt-hashed).
 - Session-cookie authentication; unauthenticated access to protected pages
   redirects to `/login`.
+
+---
+
+## Batch 2E — Documents, Incidents & Reports permissions
+
+### Documents
+| Action | Admin | University | Sede Coord (own sede) | Tutor | Student |
+|--------|:---:|:---:|:---:|:---:|:---:|
+| View | all | all | own sede | related to own assignments | own only |
+| Create | all types | all types | all types | — | renuncia, cambio de sede, permiso, descanso médico |
+| Edit draft | ✔ | ✔ | own sede / own | — | own draft |
+| Submit | ✔ | ✔ | ✔ | — | own |
+| Start review | ✔ | ✔ | own sede | — | — |
+| Approve / Reject | ✔ | ✔ | — | — | — |
+| Archive | ✔ | ✔ | — | — | — |
+| Reopen (reason) | ✔ | — | — | — | — |
+
+### Incidents
+| Action | Admin | University | Sede Coord (own sede) | Tutor | Student |
+|--------|:---:|:---:|:---:|:---:|:---:|
+| View | all | all | own sede | assigned students / own reports | own only (non-confidential) |
+| Create | ✔ | ✔ | own sede | assigned students only | — |
+| Review/Action/Resolve/Close/Dismiss | ✔ | ✔ | own sede | — | — |
+| Reopen (reason) | ✔ | — | — | — | — |
+
+### Confidentiality
+- `restricted` internal notes are never shown to students.
+- `confidential` records: Administrator & University Coordinator only, unless the
+  record is explicitly assigned (responsible/reporter/creator).
+- Confidential data never appears in notifications, dashboard snippets or audit summaries.
+
+### Reports
+- Sede Coordinator exports own sede only; Tutor only assigned students where
+  permitted; Student may download only their own internship summary. See
+  `REPORT_CATALOG.md`.
+
+Every unauthorized request returns 403 (or a safe redirect), writes an
+`authorization_denied` audit entry, and does not leak restricted record data.
+
+> Institutional legal/privacy review is required before production use. The
+> platform does not assert legal compliance automatically.
+
+---
+
+## Batch 2F — Bulk import & grade permissions
+
+| Import profile | Admin | University | Sede Coord | Tutor | Student |
+|----------------|:---:|:---:|:---:|:---:|:---:|
+| Students | ✔ | ✔ | own sede | — | — |
+| Sedes | ✔ | ✔ | — | — | — |
+| Coordinators | ✔ | ✔ | — | — | — |
+| Tutors | ✔ | ✔ | — | — | — |
+| Rotations | ✔ | ✔ | own sede | — | — |
+| Grade components | ✔ | ✔ | — | — | — |
+
+- **Administrator**: full import access, all profiles, may confirm updates.
+- **University Coordinator**: students, rotations and grades (plus sedes/staff);
+  no system user/role import beyond the above.
+- **Sede Coordinator**: own-sede students/rotations only (scope enforced per row);
+  no global grade import.
+- **Tutor**: no bulk master-data import (may later upload permitted grade sheets for
+  assigned students only — reserved for the next batch).
+- **Student**: no import access.
+
+- **Grade viewing** (`/grades`): Administrator and University Coordinator only.
+  Students never see the raw grade matrix.
+- Every unauthorized import/grade request returns **403** and is audited.

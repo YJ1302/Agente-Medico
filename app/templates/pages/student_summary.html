@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% set st_tone = {'open':'info','under_review':'warning','action_required':'warning','resolved':'success','closed':'muted','dismissed':'muted','reopened':'danger'} %}
+
+{% block content %}
+<div class="page-head" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+  <div><h1><i class="bi bi-person-vcard"></i> {{ student.full_name }}</h1>
+    <p>Registro consolidado del internado{% if is_student_self %} (información aprobada/final){% endif %}.</p></div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap">
+    <a class="btn btn-light btn-sm" href="/reports/student/{{ student.id }}/export.xlsx"><i class="bi bi-file-excel"></i> Excel</a>
+    <a class="btn btn-light btn-sm" href="/reports/student/{{ student.id }}/export.pdf"><i class="bi bi-file-pdf"></i> PDF</a>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:14px">
+  <div style="display:flex;gap:14px;flex-wrap:wrap;color:var(--text-muted);font-size:.9em">
+    {% for k, v in meta.items() %}<span><strong>{{ k }}:</strong> {{ v }}</span>{% endfor %}
+  </div>
+</div>
+
+<div class="grid-2" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-bottom:14px">
+  <div class="card"><div class="stat"><div class="stat-value">{{ completion.total }}</div><div class="stat-label">Rotaciones</div></div>
+    <small style="color:var(--text-muted)">{{ completion.completed }} completadas · {{ completion.active }} activas · {{ completion.planned }} planificadas</small></div>
+  <div class="card"><div class="stat"><div class="stat-value">{{ activity.verified }}/{{ activity.total }}</div><div class="stat-label">Actividades verificadas</div></div>
+    <small style="color:var(--text-muted)">{{ activity.pending }} pendientes</small></div>
+  <div class="card"><div class="stat"><div class="stat-value">{{ evaluations|length }}</div><div class="stat-label">Evaluaciones</div></div></div>
+  <div class="card"><div class="stat"><div class="stat-value">{{ documents|length }}</div><div class="stat-label">Documentos aprobados</div></div></div>
+</div>
+
+<div class="card" style="margin-bottom:14px">
+  <div class="card-head"><h3><i class="bi bi-person"></i> Perfil</h3></div>
+  <div class="table-scroll"><table class="data"><tbody>
+    <tr><th>Código</th><td>{{ student.student_code }}</td><th>Ciclo</th><td>{{ student.cycle or '—' }}</td></tr>
+    <tr><th>Institución</th><td>{{ student.institution_type.name if student.institution_type else '—' }}</td>
+        <th>Sede actual</th><td>{{ student.sede.name if student.sede else '—' }}</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="card" style="margin-bottom:14px">
+  <div class="card-head"><h3><i class="bi bi-arrow-repeat"></i> Línea de tiempo de rotaciones</h3></div>
+  {% if assignments %}
+  <div class="table-scroll"><table class="data">
+    <thead><tr><th>Rotación</th><th>Sede</th><th>Tutor</th><th>Inicio</th><th>Fin</th><th>Estado</th></tr></thead>
+    <tbody>
+      {% for a in assignments %}
+      <tr>
+        <td>{{ a.rotation_type.name if a.rotation_type else '—' }}</td>
+        <td>{{ a.sede.short_name or a.sede.name if a.sede else '—' }}</td>
+        <td>{{ a.tutor.user.full_name if a.tutor and a.tutor.user else '—' }}</td>
+        <td>{{ a.start_date.strftime('%d/%m/%Y') if a.start_date else '—' }}</td>
+        <td>{{ a.end_date.strftime('%d/%m/%Y') if a.end_date else '—' }}</td>
+        <td><span class="chip chip-muted">{{ a.status }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody></table></div>
+  {% else %}<div class="empty-state"><p>Sin rotaciones registradas.</p></div>{% endif %}
+</div>
+
+<div class="card" style="margin-bottom:14px">
+  <div class="card-head"><h3><i class="bi bi-check2-square"></i> Evaluaciones</h3></div>
+  {% if evaluations %}
+  <div class="table-scroll"><table class="data">
+    <thead><tr><th>Rotación</th><th>Estado</th><th>Nota final</th></tr></thead>
+    <tbody>{% for e in evaluations %}
+      <tr><td>{{ e.assignment.rotation_type.name if e.assignment and e.assignment.rotation_type else '—' }}</td>
+        <td>{{ e.status }}</td><td>{{ '%.2f'|format(e.final_score) if e.final_score is not none else '—' }}</td></tr>
+    {% endfor %}</tbody></table></div>
+  {% else %}<div class="empty-state"><p>Sin evaluaciones.</p></div>{% endif %}
+</div>
+
+<div class="card" style="margin-bottom:14px">
+  <div class="card-head"><h3><i class="bi bi-file-earmark-check"></i> Documentos aprobados</h3></div>
+  {% if documents %}
+  <div class="table-scroll"><table class="data">
+    <thead><tr><th>Código</th><th>Tipo</th><th>Título</th></tr></thead>
+    <tbody>{% for d in documents %}
+      <tr><td>{{ d.code }}</td><td>{{ document_types.get(d.doc_type, d.doc_type) }}</td><td>{{ d.title }}</td></tr>
+    {% endfor %}</tbody></table></div>
+  {% else %}<div class="empty-state"><p>Sin documentos aprobados.</p></div>{% endif %}
+</div>
+
+<div class="card" style="margin-bottom:14px">
+  <div class="card-head"><h3><i class="bi bi-exclamation-triangle"></i> Incidencias relevantes</h3></div>
+  {% if incidents %}
+  <div class="table-scroll"><table class="data">
+    <thead><tr><th>Código</th><th>Tipo</th><th>Severidad</th><th>Estado</th></tr></thead>
+    <tbody>{% for i in incidents %}
+      <tr><td>{{ i.code }}</td><td>{{ incident_types.get(i.incident_type, i.incident_type) }}</td>
+        <td>{{ i.severity }}</td><td><span class="chip chip-{{ st_tone.get(i.status,'muted') }}">{{ i.status }}</span></td></tr>
+    {% endfor %}</tbody></table></div>
+  {% else %}<div class="empty-state"><p>Sin incidencias visibles.</p></div>{% endif %}
+</div>
+
+{% if alerts %}
+<div class="card">
+  <div class="card-head"><h3><i class="bi bi-bell"></i> Alertas</h3></div>
+  <ul>{% for a in alerts %}<li>{{ a.title }} — {{ a.message }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+{% endblock %}

@@ -3,6 +3,152 @@
 All notable changes to this project are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601.
 
+## [0.2.0-alpha.7.1] — Phase 1 · Part 2 · Batch 2F patch
+
+**Real-workbook compatibility audit** (complete, verified — no rebuild).
+
+Audited the client's official "BASE DE DATOS - NOTAS INTERNADO MÉDICO 2026"
+workbook against the Batch 2F import pipeline. The existing reader, validator
+and grade-import service already handled the file correctly (7 sheets, header
+row 3 below a merged category band, blank-vs-zero, student-key resolution) with
+**no changes required**. Two targeted additions:
+
+- `excel_reader.read_category_band()` — extracts the merged Actitudinal/
+  Desempeño/Conocimiento band above the header row (`SheetPreview.
+  category_headers`), used only to suggest a component's category, never a
+  weight.
+- `GradeService.cross_sheet_report()` + `GET /grades/cross-sheet-check` — cross-
+  batch comparison of imported student rosters (missing-from-a-sheet / name
+  mismatches), closing the previously documented "cross-sheet reconciliation
+  out of scope" limitation. Read-only; never mutates data.
+- `grade_service.SHEET_ROTATION_HINTS` / `category_code_for_band()` — exact
+  sheet-name and category-label aliases for the real workbook (suggestions
+  only; never auto-applied, never invents a weight).
+- **Bug fixed**: `/grades/cross-sheet-check` was shadowed by the earlier
+  `/grades/{scheme_id}` route (422 on non-integer path segment) — reordered,
+  regression-tested.
+
+13 new focused tests (`tests/test_real_workbook_compat.py`) using a synthetic
+workbook that mirrors the real file's exact structure — no real student data is
+used or committed. Full suite: **211 passed** (was 210).
+
+See `docs/IMPORT_PROFILE_CATALOG.md` § "Real workbook mapping" and
+`docs/GRADE_IMPORT_RULES.md` § "Cross-sheet consistency check" /
+"Real-workbook compatibility".
+
+---
+
+## [0.2.0-alpha.7] — Phase 1 · Part 2 · Batch 2F
+
+**Safe Excel bulk import + academic grade import foundation** (complete, verified).
+
+### Bulk import framework
+Generic, profile-driven pipeline: upload → select sheet → detect headers → map
+columns → validate (dry-run) → preview → choose mode → confirm → import
+(transactional) → result. Supports `.xlsx`/`.xlsm` only, with extension + MIME +
+readability + malformed-workbook + duplicate-sheet validation; files stored
+outside `app/static` and deleted after import. Import modes: create-only,
+update-existing, skip-duplicates, valid-only, all-or-nothing. Reuses the existing
+per-entity validators and the rotation conflict engine (no business rule bypassed);
+single-transaction persistence; stale-confirmation guard (file+mapping hash);
+duplicate-confirmation prevention; idempotent re-import; row-count limit;
+downloadable error report; full audit and import history.
+
+### Import profiles
+Students, sedes, tutors, coordinators, rotations, and grade components — with
+required/optional columns, header aliases for auto-mapping, unique keys and
+duplicate behaviour (see IMPORT_PROFILE_CATALOG.md).
+
+### Academic grade foundation
+New tables `grade_schemes`, `grade_component_definitions`, `student_grade_components`,
+`grade_component_history` (+ generic `import_batches`, `import_rows`). Configurable,
+versioned schemes; **weights may be null**; **no final grade is computed until
+weights are confirmed** (UI shows "Fórmula pendiente de confirmación"). Grade import
+rules: blank→null, zero preserved as zero, 0–20 range, missing/duplicate student
+detection, approved-value protection with history, source sheet/row/column preserved.
+
+### Migration
+`c3f7a1b9d2e6` (revises `b2e4d9c17a05`): six new tables. `upgrade head` /
+`downgrade -1` verified; existing data untouched.
+
+### Tests
+170 → **198 passed** (28 new: imports 19, grade imports 9). All previous modules
+remain functional; offline assets 200; 5-role smoke verified.
+
+### New docs
+`EXCEL_IMPORT_WORKFLOW.md`, `IMPORT_PROFILE_CATALOG.md`, `GRADE_COMPONENT_MODEL.md`,
+`GRADE_IMPORT_RULES.md`.
+
+### Next batch
+Academic Grade Agent + AI Coordinator Assistant.
+
+## [0.2.0-alpha.6] — Phase 1 · Part 2 · Batch 2E
+
+**Documents, Incidents and Reports** (complete, verified).
+
+### Documents
+Full formal-document management: 13 document types, lifecycle
+`draft → submitted → under_review → approved | rejected → (draft)`,
+`approved → archived`, Administrator-only reopen (reason required). Server-side
+sequential numbering `DOC-YYYY-NNNN` (concurrency-safe via `document_sequences`).
+5 reusable templates (resignation modelled on the attached reference). Tabbed
+detail (`Resumen · Contenido · Adjuntos · Flujo · Historial · Auditoría`),
+print view and formal PDF. Append-only `status_history`; no automatic sending.
+
+### Incidents
+Full incident management: 13 types, 4 severities (added `critical`), lifecycle
+`open → under_review → action_required → resolved → closed`, plus
+`under_review → dismissed` and Administrator reopen. Resolution requires
+comments; closing requires a resolution; dismissal/reopen require reasons.
+High/critical incidents raise alerts; critical incidents are surfaced
+prominently. Tabbed detail (`Resumen · Seguimiento · Adjuntos · Historial ·
+Auditoría`).
+
+### Secure attachments
+Polymorphic `attachments` table shared by documents and incidents. Whitelisted
+extensions **and** MIME **and** magic-byte sniffing; server-generated UUID
+filenames; storage outside `app/static`; authorized download-only route with
+scope re-check; path-traversal-proof; draft-only deletion (Admin override with
+reason). Upload/download/delete audited. Visible privacy warning.
+
+### Reports & exports
+14 reports with role scope applied before data gathering; Excel (openpyxl) and
+printable PDF (fpdf2) exports; consolidated **student internship summary**
+(screen/PDF/Excel). Students may download only their own summary. All exports
+audited. See `docs/REPORT_CATALOG.md`.
+
+### Confidentiality
+Added `normal | restricted | confidential` visibility to documents and
+incidents. Students never see restricted internal notes; confidential records
+are limited to Administrator/University Coordinator unless explicitly assigned;
+confidential data is redacted from alerts.
+
+### Alerts & agents
+8 new deterministic rules (`document_waiting_review`,
+`document_rejected_pending_correction`, `document_overdue`,
+`high_severity_incident`, `critical_incident`, `incident_due_soon`,
+`incident_overdue`, `unresolved_incident_near_rotation_end`). Enhanced
+`DocumentAgent` (deterministic triage + next-role recommendation) and new
+`IncidentMonitoringAgent`. Agents summarize and recommend only — they never
+approve documents or close incidents.
+
+### Migration
+`b2e4d9c17a05` (revises `ca5acdae8455`): adds columns to `document_records` and
+`incidents`; creates `attachments`, `status_history`, `document_templates`,
+`document_sequences`. Nullable/new-table only — existing data preserved.
+`upgrade head` / `downgrade -1` verified.
+
+### Tests
+118 → **170 passed** (52 new: documents 14, attachments 10, incidents 11,
+reports 10, security 7). All previous modules remain functional; offline assets
+return 200; 5-role smoke test verified.
+
+### New docs
+`DOCUMENT_WORKFLOW.md`, `INCIDENT_WORKFLOW.md`, `REPORT_CATALOG.md`,
+`FILE_UPLOAD_SECURITY.md`.
+
+---
+
 ## [0.2.0-alpha.5] — Phase 1 · Part 2 · Batch 2D
 
 **Complete digital evaluation workflow + role-specific dashboards** (complete, verified).

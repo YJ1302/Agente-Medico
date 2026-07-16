@@ -13,6 +13,9 @@ env/
 app/data/*.db
 app/data/*.sqlite3
 
+# Uploaded attachments (stored outside the public static folder)
+var/
+
 # Logs
 *.log
 logs/

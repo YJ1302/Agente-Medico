@@ -125,3 +125,16 @@ templates. Agents live under `app/agents/`.
   logging (`AuditLog` schema is provided in Part 1).
 - **R5 — Human-in-the-loop AI.** AI-generated recommendations require human
   approval. No agent sends a final institutional communication autonomously.
+
+---
+
+## Batch 2E addendum — Documents, Incidents, Reports
+
+- Do not rebuild completed modules; Batch 2E adds documents, incidents, secure
+  attachments, reports/exports on top of the existing architecture.
+- Every mutation is POST + CSRF-protected; GET never mutates state.
+- Human approval is always required; agents only detect and recommend.
+- Confidentiality and record-level scope are enforced server-side and audited.
+- Excel bulk import and external AI are intentionally **not** implemented yet.
+- See `DOCUMENT_WORKFLOW.md`, `INCIDENT_WORKFLOW.md`, `REPORT_CATALOG.md`,
+  `FILE_UPLOAD_SECURITY.md`.

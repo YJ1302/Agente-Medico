@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1>
+  <p>{{ page_subtitle }} Los reportes aplican su ámbito de acceso antes de generar los datos. No incluyen datos de pacientes.</p>
+</div>
+
+{% if reports %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-head"><h3><i class="bi bi-table"></i> Reportes disponibles</h3></div>
+  <div class="table-scroll">
+    <table class="data">
+      <thead><tr><th>Reporte</th><th style="width:280px">Acciones</th></tr></thead>
+      <tbody>
+        {% for key, title in reports %}
+        <tr>
+          <td>{{ title }}</td>
+          <td style="display:flex;gap:6px;flex-wrap:wrap">
+            <a class="btn btn-outline btn-sm" href="/reports/view/{{ key }}"><i class="bi bi-eye"></i> Ver</a>
+            <a class="btn btn-light btn-sm" href="/reports/export/{{ key }}.xlsx"><i class="bi bi-file-excel"></i> Excel</a>
+            <a class="btn btn-light btn-sm" href="/reports/export/{{ key }}.pdf"><i class="bi bi-file-pdf"></i> PDF</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-head"><h3><i class="bi bi-person-vcard"></i> Resumen de internado por interno</h3></div>
+  <p style="color:var(--text-muted)">Registro consolidado: perfil, rotaciones, tutores, actividades, evaluaciones, documentos aprobados, incidencias y estado de avance.</p>
+  {% if is_student %}
+    {% if students %}
+    <a class="btn btn-primary" href="/reports/student/{{ students[0].id }}"><i class="bi bi-file-earmark-person"></i> Ver mi resumen de internado</a>
+    {% else %}<div class="empty-state"><p>No hay información de internado disponible.</p></div>{% endif %}
+  {% elif students %}
+    <div class="table-scroll">
+      <table class="data">
+        <thead><tr><th>Interno</th><th>Sede</th><th></th></tr></thead>
+        <tbody>
+          {% for s in students %}
+          <tr>
+            <td>{{ s.full_name }}</td>
+            <td>{{ s.sede.short_name or s.sede.name if s.sede else '—' }}</td>
+            <td><a class="btn btn-outline btn-sm" href="/reports/student/{{ s.id }}"><i class="bi bi-file-earmark-person"></i> Resumen</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}<div class="empty-state"><p>No hay internos en su ámbito.</p></div>{% endif %}
+</div>
+{% endblock %}

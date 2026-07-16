@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import csrf_field %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="page-head"><h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1>
+  <p>Suba un archivo Excel (.xlsx o .xlsm). El archivo se almacena temporalmente y se elimina tras la importación.</p></div>
+
+<nav class="breadcrumbs" style="margin-bottom:12px">
+  <a href="/imports">Centro de Importación</a> <i class="bi bi-chevron-right"></i> <span>{{ profile.label }}</span>
+</nav>
+
+<div class="card" style="margin-bottom:16px">
+  <div class="card-head"><h3><i class="bi bi-list-check"></i> Columnas esperadas</h3></div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap">
+    {% for f in profile.fields %}
+    <span class="chip chip-{{ 'info' if f.required else 'muted' }}">{{ f.label }}{% if f.required %} *{% endif %}</span>
+    {% endfor %}
+  </div>
+  <p style="margin:8px 0 0;color:var(--text-muted);font-size:.9em">* obligatorio · Podrá ajustar el mapeo de columnas en el siguiente paso.</p>
+</div>
+
+<form method="post" action="/imports" enctype="multipart/form-data" class="card">
+  {{ csrf_field(csrf_token) }}
+  <input type="hidden" name="profile" value="{{ profile.code }}">
+
+  {% if profile.code == 'grade_components' %}
+  <div class="form-group">
+    <label>Esquema de notas <span class="req">*</span></label>
+    <select class="form-control" name="scheme_id" required>
+      <option value="">— Seleccione un esquema —</option>
+      {% for s in schemes %}<option value="{{ s.id }}">{{ s.name }} (v{{ s.version }})</option>{% endfor %}
+    </select>
+    <small class="form-help">Las notas se importan como componentes del esquema. No se calcula la nota final hasta confirmar los pesos.</small>
+  </div>
+  {% endif %}
+
+  <div class="form-group">
+    <label>Archivo Excel <span class="req">*</span></label>
+    <input class="form-control" type="file" name="file" accept=".xlsx,.xlsm" required>
+  </div>
+
+  <div class="flash flash-info"><i class="bi bi-shield-exclamation"></i>
+    <span>No incluya datos de pacientes. Solo se admiten .xlsx y .xlsm; el archivo se valida antes de procesarse.</span></div>
+
+  <div class="form-actions">
+    <button class="btn btn-primary" type="submit"><i class="bi bi-upload"></i> Subir y continuar</button>
+    <a class="btn btn-light" href="/imports">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

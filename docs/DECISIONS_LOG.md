@@ -197,6 +197,97 @@ one provider system without duplication.
 functions, evaluation format). The 2024 activity lists inform the activity
 catalog only. **Why:** explicit project rule (Rulebook R2).
 
+### D-030 · 2026-07-15 · Polymorphic Attachment & StatusHistory (Batch 2E)
+**Decision:** A single `attachments` table (`owner_type` + `owner_id`) and a
+single `status_history` table serve both documents and incidents, instead of
+four separate tables. **Why:** identical structure and security rules; halves
+the model/repository/template surface without weakening scope (the owning
+service always re-checks view scope before returning a file).
+
+### D-031 · 2026-07-15 · Server-side numbering via a counter table
+**Decision:** `DOC-YYYY-NNNN` / `INC-YYYY-NNNN` codes are allocated from
+`document_sequences` with an atomic in-transaction increment; a UNIQUE
+constraint on the code is the final backstop and creation retries on collision.
+**Why:** deterministic, sequential-per-year, concurrency-safe on SQLite (which
+serializes writers) and portable to Postgres. Codes are never user-editable.
+
+### D-032 · 2026-07-15 · Local PDF/Excel, no paid services
+**Decision:** Excel via **openpyxl**, PDF via **fpdf2** (pure-Python, offline;
+pulls Pillow + fonttools). PDF text is coerced to latin-1-safe for the core
+fonts. **Why:** the environment has no internet/paid services; both libraries
+are lightweight and produce real downloadable files. Documented in
+`REPORT_CATALOG.md` / `FILE_UPLOAD_SECURITY.md`.
+
+### D-033 · 2026-07-15 · Confidentiality is enforced server-side, redacted in alerts
+**Decision:** `visibility` (`normal | restricted | confidential`) is enforced in
+service scope helpers, not in templates; confidential incident titles are
+redacted in rule/alert text and never appear in audit summaries. **Why:**
+hiding UI is never the boundary; confidential data must not leak through
+notifications or dashboard snippets (SECURITY_AND_PRIVACY_RULES.md). Institutional
+legal/privacy review remains required before production.
+
+### D-034 · 2026-07-15 · Agents never mutate documents/incidents
+**Decision:** `DocumentAgent` and `IncidentMonitoringAgent` are deterministic
+(no LLM); they only detect and recommend, always with
+`requires_human_approval=True`. **Why:** the platform's core rule — human
+approval is always required; no document is sent and no incident is closed
+automatically.
+
+### D-035 · 2026-07-15 · Grade imports reuse the generic import pipeline
+**Decision:** ``GradeImportBatch``/``GradeImportRow`` are realised through the
+generic ``ImportBatch``/``ImportRow`` with ``profile == "grade_components"``,
+instead of separate tables. The grade *domain* (schemes, component definitions,
+per-student components, history) has its own tables. **Why:** identical
+upload/preview/validate/confirm/history/audit machinery; the batch and source
+sheet/row/column are still preserved on every ``StudentGradeComponent``.
+
+### D-036 · 2026-07-15 · Import reuses service validation, commits once
+**Decision:** The import pipeline reuses each entity service's ``_validate`` (and
+the rotation conflict engine) for the dry-run, and persists a whole batch in a
+single transaction using repository writes that only ``flush`` (the public
+service methods' per-row ``commit`` is not used). **Why:** business rules stay
+authoritative and are never bypassed, while ``all_or_nothing`` gets true
+all-or-none semantics (a single commit / rollback).
+
+### D-037 · 2026-07-15 · No final grade without confirmed weights
+**Decision:** Component ``weight_percent`` may be null and
+``GradeScheme.weights_confirmed`` gates any final-grade computation; until then the
+UI shows "Fórmula pendiente de confirmación" and nothing is calculated. **Why:**
+the client has not confirmed the official weights; the future Academic Grade Agent
+must never invent them (GRADE_IMPORT_RULES.md).
+
+### D-038 · 2026-07-15 · Blank vs zero in grade cells
+**Decision:** A blank grade cell is stored as ``score = NULL`` (not registered) and
+is always kept distinct from a real ``0``; a blank never erases an existing value.
+**Why:** explicit client rule — zero must remain distinguishable from missing.
+
+### D-039 · 2026-07-15 · Real-workbook audit confirmed compatibility; no rebuild
+**Decision:** The client's official "BASE DE DATOS - NOTAS INTERNADO MÉDICO 2026"
+workbook (7 sheets: `QX 2026`, `INT. CIRUGÍA`, `INT. MEDICINA`,
+`REV. MED. QUIR III`, `INT. PEDIATRÍA`, `INT. GO`, `REV. MED. QUIR IV`) was read
+end-to-end through the existing Batch 2F pipeline without any change to the
+reader, validator or import service — header-row detection, blank-vs-zero, and
+student-key resolution all worked correctly against the real structure. Two
+targeted additions were made rather than a rebuild: (1) `excel_reader.
+read_category_band()` extracts the merged "Actitudinal/Desempeño/Conocimiento"
+band above the header row (read-only mode does not expose merge metadata, so a
+second bounded normal-mode load is used only for this small band, not the full
+sheet), and (2) `GradeService.cross_sheet_report()` compares student rosters
+across confirmed batches for the "present in one sheet, absent in another"
+scenario, which had been explicitly deferred as a limitation. **Why:** proves
+the general-purpose profile-driven design (D-035/D-036) generalizes to the real
+file without bespoke per-sheet code, and closes the one documented gap the real
+data exposed.
+
+### D-040 · 2026-07-15 · Static import routes must precede dynamic ones
+**Decision:** `GET /grades/cross-sheet-check` is registered before
+`GET /grades/{scheme_id}` in `grade_routes.py`. **Why:** FastAPI matches routes
+in registration order; with the int-typed dynamic route first, a request for the
+static path was being captured as `scheme_id="cross-sheet-check"` and failing
+type coercion (422) before ever reaching the intended handler. Found via the
+5-role smoke test, fixed, and locked in with
+`test_cross_sheet_check_route_not_shadowed_by_scheme_detail`.
+
 ---
 
 ## Ambiguities & assumptions

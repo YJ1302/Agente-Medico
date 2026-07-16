@@ -21,7 +21,22 @@ from app.models.base import (
     EvaluationStatus,
 )
 from app.models.evaluation import Evaluation
-from app.models.operations import Alert, DocumentRecord, Incident
+from app.models.grades import (
+    GradeComponentDefinition,
+    GradeComponentHistory,
+    GradeScheme,
+    StudentGradeComponent,
+)
+from app.models.imports import ImportBatch, ImportRow
+from app.models.operations import (
+    Alert,
+    Attachment,
+    DocumentRecord,
+    DocumentSequence,
+    DocumentTemplate,
+    Incident,
+    StatusHistory,
+)
 from app.models.organization import (
     InstitutionType,
     Sede,
@@ -827,12 +842,347 @@ class AlertRepository(BaseRepository[Alert]):
 class DocumentRepository(BaseRepository[DocumentRecord]):
     model = DocumentRecord
 
+    def _base(self):
+        return select(DocumentRecord).options(
+            selectinload(DocumentRecord.sede),
+            selectinload(DocumentRecord.student),
+        ).where(DocumentRecord.is_deleted.is_(False))
+
+    def get_full(self, document_id: int) -> DocumentRecord | None:
+        return self.db.execute(
+            self._base().where(DocumentRecord.id == document_id)
+        ).scalar_one_or_none()
+
+    def get_by_code(self, code: str) -> DocumentRecord | None:
+        return self.db.execute(
+            select(DocumentRecord).where(DocumentRecord.code == code)
+        ).scalar_one_or_none()
+
+    def all_active(self) -> list[DocumentRecord]:
+        return list(self.db.execute(self._base()).scalars().all())
+
+    def search(
+        self,
+        *,
+        query: str | None = None,
+        status: str | None = None,
+        doc_type: str | None = None,
+        priority: str | None = None,
+        visibility: str | None = None,
+        sede_id: int | None = None,
+        student_id: int | None = None,
+        sede_ids: set[int] | None = None,
+        student_ids: set[int] | None = None,
+        created_by_user_id: int | None = None,
+        visibility_in: set[str] | None = None,
+    ) -> list[DocumentRecord]:
+        stmt = self._base()
+        conds = []
+        if query:
+            like = f"%{query.strip().lower()}%"
+            conds.append(
+                func.lower(DocumentRecord.code).like(like)
+                | func.lower(DocumentRecord.title).like(like)
+                | func.lower(func.coalesce(DocumentRecord.subject, "")).like(like)
+            )
+        if status:
+            conds.append(DocumentRecord.status == status)
+        if doc_type:
+            conds.append(DocumentRecord.doc_type == doc_type)
+        if priority:
+            conds.append(DocumentRecord.priority == priority)
+        if visibility:
+            conds.append(DocumentRecord.visibility == visibility)
+        if sede_id is not None:
+            conds.append(DocumentRecord.sede_id == sede_id)
+        if student_id is not None:
+            conds.append(DocumentRecord.student_id == student_id)
+        if sede_ids is not None:
+            conds.append(DocumentRecord.sede_id.in_(sede_ids) if sede_ids else False)
+        if student_ids is not None:
+            conds.append(DocumentRecord.student_id.in_(student_ids) if student_ids else False)
+        if created_by_user_id is not None:
+            conds.append(DocumentRecord.created_by_user_id == created_by_user_id)
+        if visibility_in is not None:
+            conds.append(DocumentRecord.visibility.in_(visibility_in) if visibility_in else False)
+        if conds:
+            stmt = stmt.where(and_(*conds))
+        return list(self.db.execute(stmt.order_by(DocumentRecord.created_at.desc())).scalars().all())
+
+    def count_by_status(self) -> dict[str, int]:
+        stmt = (
+            select(DocumentRecord.status, func.count(DocumentRecord.id))
+            .where(DocumentRecord.is_deleted.is_(False))
+            .group_by(DocumentRecord.status)
+        )
+        return {s: int(c) for s, c in self.db.execute(stmt).all()}
+
 
 class IncidentRepository(BaseRepository[Incident]):
     model = Incident
 
+    def _base(self):
+        return select(Incident).options(
+            selectinload(Incident.sede),
+            selectinload(Incident.student),
+        ).where(Incident.is_deleted.is_(False))
+
+    def get_full(self, incident_id: int) -> Incident | None:
+        return self.db.execute(
+            self._base().where(Incident.id == incident_id)
+        ).scalar_one_or_none()
+
+    def get_by_code(self, code: str) -> Incident | None:
+        return self.db.execute(
+            select(Incident).where(Incident.code == code)
+        ).scalar_one_or_none()
+
     def open_incidents(self) -> list[Incident]:
-        stmt = select(Incident).where(Incident.is_deleted.is_(False))
+        return list(self.db.execute(self._base()).scalars().all())
+
+    def all_active(self) -> list[Incident]:
+        return list(self.db.execute(self._base()).scalars().all())
+
+    def search(
+        self,
+        *,
+        query: str | None = None,
+        status: str | None = None,
+        incident_type: str | None = None,
+        severity: str | None = None,
+        sede_id: int | None = None,
+        student_id: int | None = None,
+        sede_ids: set[int] | None = None,
+        student_ids: set[int] | None = None,
+        reported_by_user_id: int | None = None,
+        visibility_in: set[str] | None = None,
+    ) -> list[Incident]:
+        stmt = self._base()
+        conds = []
+        if query:
+            like = f"%{query.strip().lower()}%"
+            conds.append(
+                func.lower(Incident.code).like(like)
+                | func.lower(Incident.title).like(like)
+            )
+        if status:
+            conds.append(Incident.status == status)
+        if incident_type:
+            conds.append(Incident.incident_type == incident_type)
+        if severity:
+            conds.append(Incident.severity == severity)
+        if sede_id is not None:
+            conds.append(Incident.sede_id == sede_id)
+        if student_id is not None:
+            conds.append(Incident.student_id == student_id)
+        if sede_ids is not None:
+            conds.append(Incident.sede_id.in_(sede_ids) if sede_ids else False)
+        if student_ids is not None:
+            conds.append(Incident.student_id.in_(student_ids) if student_ids else False)
+        if reported_by_user_id is not None:
+            conds.append(Incident.reported_by_user_id == reported_by_user_id)
+        if visibility_in is not None:
+            conds.append(Incident.visibility.in_(visibility_in) if visibility_in else False)
+        if conds:
+            stmt = stmt.where(and_(*conds))
+        return list(self.db.execute(stmt.order_by(Incident.created_at.desc())).scalars().all())
+
+    def count_open_by_severity(self) -> dict[str, int]:
+        from app.models.base import IncidentStatus
+        terminal = {IncidentStatus.CLOSED.value, IncidentStatus.DISMISSED.value}
+        stmt = (
+            select(Incident.severity, func.count(Incident.id))
+            .where(and_(Incident.is_deleted.is_(False), Incident.status.notin_(terminal)))
+            .group_by(Incident.severity)
+        )
+        return {s: int(c) for s, c in self.db.execute(stmt).all()}
+
+
+class AttachmentRepository(BaseRepository[Attachment]):
+    model = Attachment
+
+    def for_owner(self, owner_type: str, owner_id: int, *, include_deleted: bool = False) -> list[Attachment]:
+        conds = [Attachment.owner_type == owner_type, Attachment.owner_id == owner_id]
+        if not include_deleted:
+            conds.append(Attachment.is_deleted.is_(False))
+        stmt = select(Attachment).where(and_(*conds)).order_by(Attachment.created_at.desc())
+        return list(self.db.execute(stmt).scalars().all())
+
+
+class StatusHistoryRepository(BaseRepository[StatusHistory]):
+    model = StatusHistory
+
+    def for_owner(self, owner_type: str, owner_id: int) -> list[StatusHistory]:
+        stmt = (
+            select(StatusHistory)
+            .where(and_(StatusHistory.owner_type == owner_type,
+                        StatusHistory.owner_id == owner_id))
+            .order_by(StatusHistory.created_at.asc())
+        )
+        return list(self.db.execute(stmt).scalars().all())
+
+
+class DocumentTemplateRepository(BaseRepository[DocumentTemplate]):
+    model = DocumentTemplate
+
+    def active(self) -> list[DocumentTemplate]:
+        stmt = select(DocumentTemplate).where(
+            and_(DocumentTemplate.is_active.is_(True), DocumentTemplate.is_deleted.is_(False))
+        ).order_by(DocumentTemplate.name)
+        return list(self.db.execute(stmt).scalars().all())
+
+    def get_by_code(self, code: str) -> DocumentTemplate | None:
+        return self.db.execute(
+            select(DocumentTemplate).where(DocumentTemplate.code == code)
+        ).scalar_one_or_none()
+
+
+class DocumentSequenceRepository(BaseRepository[DocumentSequence]):
+    model = DocumentSequence
+
+    def next_value(self, kind: str, year: int) -> int:
+        """Atomically allocate the next sequence value for (kind, year).
+
+        Uses an in-transaction ``UPDATE ... SET last_value = last_value + 1``.
+        SQLite serializes writers, so two concurrent callers cannot receive the
+        same number; the UNIQUE constraint on the generated code is the final
+        backstop against a race on any backend.
+        """
+        row = self.db.execute(
+            select(DocumentSequence).where(
+                and_(DocumentSequence.kind == kind, DocumentSequence.year == year)
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            row = DocumentSequence(kind=kind, year=year, last_value=0)
+            self.db.add(row)
+            self.db.flush()
+        row.last_value = (row.last_value or 0) + 1
+        self.db.flush()
+        return row.last_value
+
+
+class ImportBatchRepository(BaseRepository[ImportBatch]):
+    model = ImportBatch
+
+    def get_by_code(self, code: str) -> ImportBatch | None:
+        return self.db.execute(
+            select(ImportBatch).where(ImportBatch.code == code)
+        ).scalar_one_or_none()
+
+    def get_full(self, batch_id: int) -> ImportBatch | None:
+        return self.db.execute(
+            select(ImportBatch)
+            .options(selectinload(ImportBatch.rows))
+            .where(ImportBatch.id == batch_id)
+        ).scalar_one_or_none()
+
+    def recent(self, limit: int = 50, *, profile: str | None = None,
+               created_by_user_id: int | None = None,
+               sede_scope_id: int | None = None) -> list[ImportBatch]:
+        stmt = select(ImportBatch).where(ImportBatch.is_deleted.is_(False))
+        if profile:
+            stmt = stmt.where(ImportBatch.profile == profile)
+        if created_by_user_id is not None:
+            stmt = stmt.where(ImportBatch.created_by_user_id == created_by_user_id)
+        if sede_scope_id is not None:
+            stmt = stmt.where(ImportBatch.sede_scope_id == sede_scope_id)
+        stmt = stmt.order_by(ImportBatch.created_at.desc()).limit(limit)
+        return list(self.db.execute(stmt).scalars().all())
+
+
+class ImportRowRepository(BaseRepository[ImportRow]):
+    model = ImportRow
+
+    def for_batch(self, batch_id: int) -> list[ImportRow]:
+        stmt = (
+            select(ImportRow)
+            .where(ImportRow.batch_id == batch_id)
+            .order_by(ImportRow.row_number)
+        )
+        return list(self.db.execute(stmt).scalars().all())
+
+    def delete_for_batch(self, batch_id: int) -> None:
+        for row in self.for_batch(batch_id):
+            self.db.delete(row)
+        self.db.flush()
+
+
+class GradeSchemeRepository(BaseRepository[GradeScheme]):
+    model = GradeScheme
+
+    def get_by_code(self, code: str) -> GradeScheme | None:
+        return self.db.execute(
+            select(GradeScheme).where(GradeScheme.code == code)
+        ).scalar_one_or_none()
+
+    def get_full(self, scheme_id: int) -> GradeScheme | None:
+        return self.db.execute(
+            select(GradeScheme)
+            .options(selectinload(GradeScheme.components))
+            .where(GradeScheme.id == scheme_id)
+        ).scalar_one_or_none()
+
+    def active(self) -> list[GradeScheme]:
+        stmt = (
+            select(GradeScheme)
+            .options(selectinload(GradeScheme.components))
+            .where(GradeScheme.is_deleted.is_(False))
+            .order_by(GradeScheme.name)
+        )
+        return list(self.db.execute(stmt).scalars().all())
+
+
+class GradeComponentDefinitionRepository(BaseRepository[GradeComponentDefinition]):
+    model = GradeComponentDefinition
+
+    def for_scheme(self, scheme_id: int) -> list[GradeComponentDefinition]:
+        stmt = (
+            select(GradeComponentDefinition)
+            .where(GradeComponentDefinition.scheme_id == scheme_id)
+            .order_by(GradeComponentDefinition.display_order,
+                      GradeComponentDefinition.name)
+        )
+        return list(self.db.execute(stmt).scalars().all())
+
+
+class StudentGradeComponentRepository(BaseRepository[StudentGradeComponent]):
+    model = StudentGradeComponent
+
+    def get_one(self, student_id: int, scheme_id: int,
+                component_id: int) -> StudentGradeComponent | None:
+        stmt = select(StudentGradeComponent).where(
+            and_(StudentGradeComponent.student_id == student_id,
+                 StudentGradeComponent.scheme_id == scheme_id,
+                 StudentGradeComponent.component_id == component_id,
+                 StudentGradeComponent.is_deleted.is_(False))
+        )
+        return self.db.execute(stmt).scalar_one_or_none()
+
+    def for_scheme(self, scheme_id: int) -> list[StudentGradeComponent]:
+        stmt = select(StudentGradeComponent).where(
+            and_(StudentGradeComponent.scheme_id == scheme_id,
+                 StudentGradeComponent.is_deleted.is_(False))
+        )
+        return list(self.db.execute(stmt).scalars().all())
+
+    def for_student(self, student_id: int) -> list[StudentGradeComponent]:
+        stmt = select(StudentGradeComponent).where(
+            and_(StudentGradeComponent.student_id == student_id,
+                 StudentGradeComponent.is_deleted.is_(False))
+        )
+        return list(self.db.execute(stmt).scalars().all())
+
+
+class GradeComponentHistoryRepository(BaseRepository[GradeComponentHistory]):
+    model = GradeComponentHistory
+
+    def for_component(self, sgc_id: int) -> list[GradeComponentHistory]:
+        stmt = (
+            select(GradeComponentHistory)
+            .where(GradeComponentHistory.student_grade_component_id == sgc_id)
+            .order_by(GradeComponentHistory.created_at)
+        )
         return list(self.db.execute(stmt).scalars().all())
 
 
@@ -878,5 +1228,15 @@ class RepositoryBundle:
         self.alerts = AlertRepository(db)
         self.documents = DocumentRepository(db)
         self.incidents = IncidentRepository(db)
+        self.attachments = AttachmentRepository(db)
+        self.status_history = StatusHistoryRepository(db)
+        self.document_templates = DocumentTemplateRepository(db)
+        self.sequences = DocumentSequenceRepository(db)
+        self.import_batches = ImportBatchRepository(db)
+        self.import_rows = ImportRowRepository(db)
+        self.grade_schemes = GradeSchemeRepository(db)
+        self.grade_components = GradeComponentDefinitionRepository(db)
+        self.student_grades = StudentGradeComponentRepository(db)
+        self.grade_history = GradeComponentHistoryRepository(db)
         self.agent_executions = AgentExecutionRepository(db)
         self.audit_logs = AuditLogRepository(db)

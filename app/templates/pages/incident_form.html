@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import csrf_field, error_summary %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1>
+  <p>Registre la situación de forma objetiva. Las incidencias de severidad alta o crítica generan alertas para su atención.</p>
+</div>
+
+<nav class="breadcrumbs" style="margin-bottom:12px">
+  <a href="/incidents">Incidencias</a> <i class="bi bi-chevron-right"></i>
+  <span>{{ 'Nueva' if mode=='create' else inc.code }}</span>
+</nav>
+
+{{ error_summary(errors) }}
+
+<form method="post" action="{{ '/incidents' if mode=='create' else '/incidents/' ~ inc.id ~ '/edit' }}" class="card">
+  {{ csrf_field(csrf_token) }}
+  <div class="form-grid">
+    <div class="form-group" style="grid-column:1/-1">
+      <label>Título <span class="req">*</span></label>
+      <input class="form-control {% if errors.title %}is-invalid{% endif %}" name="title" value="{{ values.title or '' }}" required>
+      {% if errors.title %}<div class="invalid-feedback">{{ errors.title }}</div>{% endif %}
+    </div>
+    <div class="form-group">
+      <label>Tipo <span class="req">*</span></label>
+      <select class="form-control {% if errors.incident_type %}is-invalid{% endif %}" name="incident_type" required>
+        <option value="">— Seleccione —</option>
+        {% for code, lbl in incident_types.items() %}
+        <option value="{{ code }}" {% if values.incident_type==code %}selected{% endif %}>{{ lbl }}</option>{% endfor %}
+      </select>
+      {% if errors.incident_type %}<div class="invalid-feedback">{{ errors.incident_type }}</div>{% endif %}
+    </div>
+    <div class="form-group">
+      <label>Severidad <span class="req">*</span></label>
+      <select class="form-control" name="severity">
+        {% for s in severities %}
+        <option value="{{ s }}" {% if values.severity==s or (not values.severity and s=='medium') %}selected{% endif %}>{{ s }}</option>{% endfor %}
+      </select>
+    </div>
+    {% if not is_student %}
+    <div class="form-group">
+      <label>Visibilidad</label>
+      <select class="form-control" name="visibility">
+        {% for v in visibilities %}
+        <option value="{{ v }}" {% if values.visibility==v or (not values.visibility and v=='normal') %}selected{% endif %}>{{ v }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Fecha límite</label>
+      <input class="form-control {% if errors.due_date %}is-invalid{% endif %}" type="date" name="due_date" value="{{ values.due_date or '' }}">
+      {% if errors.due_date %}<div class="invalid-feedback">{{ errors.due_date }}</div>{% endif %}
+    </div>
+    <div class="form-group">
+      <label>Interno</label>
+      <select class="form-control" name="student_id"><option value="">—</option>
+        {% for s in students %}<option value="{{ s.id }}" {% if values.student_id|string==s.id|string %}selected{% endif %}>{{ s.full_name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Sede</label>
+      <select class="form-control" name="sede_id"><option value="">—</option>
+        {% for s in sedes %}<option value="{{ s.id }}" {% if values.sede_id|string==s.id|string %}selected{% endif %}>{{ s.short_name or s.name }}</option>{% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    <div class="form-group" style="grid-column:1/-1">
+      <label>Descripción <span class="req">*</span></label>
+      <textarea class="form-control {% if errors.description %}is-invalid{% endif %}" name="description" rows="6" required>{{ values.description or '' }}</textarea>
+      {% if errors.description %}<div class="invalid-feedback">{{ errors.description }}</div>{% endif %}
+    </div>
+    {% if not is_student %}
+    <div class="form-group" style="grid-column:1/-1">
+      <label>Notas internas <span class="chip chip-warning">Restringido</span></label>
+      <textarea class="form-control" name="internal_notes" rows="3" placeholder="No visible para el estudiante.">{{ values.internal_notes or '' }}</textarea>
+    </div>
+    {% endif %}
+  </div>
+  <div class="form-actions">
+    <button class="btn btn-primary" type="submit"><i class="bi bi-save"></i> {{ 'Registrar' if mode=='create' else 'Guardar' }}</button>
+    <a class="btn btn-light" href="{{ '/incidents' if mode=='create' else '/incidents/' ~ inc.id }}">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

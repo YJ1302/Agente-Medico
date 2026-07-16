@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import pagination %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% set status_tone = {'draft':'muted','submitted':'info','under_review':'warning','approved':'success','rejected':'danger','archived':'muted'} %}
+{% set status_label = {'draft':'Borrador','submitted':'Enviado','under_review':'En revisión','approved':'Aprobado','rejected':'Rechazado','archived':'Archivado'} %}
+{% set prio_tone = {'low':'muted','normal':'info','high':'warning','urgent':'danger'} %}
+
+{% block content %}
+<div class="page-head">
+  <h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1>
+  <p>{{ page_subtitle }}</p>
+</div>
+
+<div class="card" style="margin-bottom:16px">
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between">
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      {% for st, lbl in status_label.items() %}
+      <span class="chip chip-{{ status_tone[st] }}">{{ lbl }}: {{ counts.get(st, 0) }}</span>
+      {% endfor %}
+    </div>
+    <a class="btn btn-primary btn-sm" href="/documents/new"><i class="bi bi-file-earmark-plus"></i> Nuevo documento</a>
+  </div>
+</div>
+
+<div class="card">
+  <form class="filter-bar" method="get" action="/documents">
+    <div class="filter-item" style="flex:2">
+      <label>Buscar</label>
+      <input class="form-control" type="text" name="q" value="{{ q }}" placeholder="Código, título o asunto…">
+    </div>
+    <div class="filter-item">
+      <label>Estado</label>
+      <select class="form-control" name="status">
+        <option value="">Todos</option>
+        {% for st, lbl in status_label.items() %}
+        <option value="{{ st }}" {% if status==st %}selected{% endif %}>{{ lbl }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-item">
+      <label>Tipo</label>
+      <select class="form-control" name="doc_type">
+        <option value="">Todos</option>
+        {% for code, lbl in doc_types.items() %}
+        <option value="{{ code }}" {% if doc_type==code %}selected{% endif %}>{{ lbl }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button class="btn btn-outline btn-sm" type="submit"><i class="bi bi-funnel"></i> Filtrar</button>
+    <a class="btn btn-light btn-sm" href="/documents"><i class="bi bi-x-lg"></i></a>
+  </form>
+
+  <div class="result-count" style="margin:10px 0">{{ page.total }} resultado(s){% if page.total %} · {{ page.start_index }}–{{ page.end_index }}{% endif %}</div>
+
+  {% if page.items %}
+  <div class="table-scroll">
+    <table class="data">
+      <thead>
+        <tr><th>Código</th><th>Título</th><th>Tipo</th><th>Prioridad</th><th>Visibilidad</th><th>Estado</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for d in page.items %}
+        <tr>
+          <td><strong>{{ d.code }}</strong></td>
+          <td>{{ d.title }}{% if d.subject %}<br><small style="color:var(--text-muted)">{{ d.subject }}</small>{% endif %}</td>
+          <td>{{ doc_types.get(d.doc_type, d.doc_type) }}</td>
+          <td><span class="chip chip-{{ prio_tone.get(d.priority,'muted') }}">{{ d.priority }}</span></td>
+          <td>
+            {% if d.visibility == 'confidential' %}<span class="chip chip-danger"><i class="bi bi-shield-lock"></i> Confidencial</span>
+            {% elif d.visibility == 'restricted' %}<span class="chip chip-warning"><i class="bi bi-eye-slash"></i> Restringido</span>
+            {% else %}<span class="chip chip-muted">Normal</span>{% endif %}
+          </td>
+          <td><span class="chip chip-{{ status_tone.get(d.status,'muted') }}">{{ status_label.get(d.status, d.status) }}</span></td>
+          <td><a class="btn btn-outline btn-sm" href="/documents/{{ d.id }}"><i class="bi bi-eye"></i></a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ pagination(page, base_qs) }}
+  {% else %}
+  <div class="empty-state"><div class="es-icon"><i class="bi bi-inbox"></i></div>
+    <p>No hay documentos para los filtros seleccionados.</p>
+    <a class="btn btn-primary btn-sm" href="/documents/new"><i class="bi bi-file-earmark-plus"></i> Crear el primero</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

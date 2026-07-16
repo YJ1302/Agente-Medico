@@ -86,6 +86,57 @@ SUBMIT_EVALUATION = "submit_evaluation"
 RETURN_EVALUATION = "return_evaluation"
 APPROVE_EVALUATION = "approve_evaluation"
 REOPEN_EVALUATION = "reopen_evaluation"
+
+# Batch 2E — documents.
+CREATE_DOCUMENT = "create_document"
+UPDATE_DOCUMENT = "update_document"
+SUBMIT_DOCUMENT = "submit_document"
+START_DOCUMENT_REVIEW = "start_document_review"
+APPROVE_DOCUMENT = "approve_document"
+REJECT_DOCUMENT = "reject_document"
+ARCHIVE_DOCUMENT = "archive_document"
+REOPEN_DOCUMENT = "reopen_document"
+UPLOAD_DOCUMENT_ATTACHMENT = "upload_document_attachment"
+DOWNLOAD_DOCUMENT_ATTACHMENT = "download_document_attachment"
+DELETE_DOCUMENT_ATTACHMENT = "delete_document_attachment"
+GENERATE_DOCUMENT_PDF = "generate_document_pdf"
+
+# Batch 2E — incidents.
+CREATE_INCIDENT = "create_incident"
+UPDATE_INCIDENT = "update_incident"
+ASSIGN_INCIDENT = "assign_incident"
+CHANGE_INCIDENT_STATUS = "change_incident_status"
+RESOLVE_INCIDENT = "resolve_incident"
+CLOSE_INCIDENT = "close_incident"
+DISMISS_INCIDENT = "dismiss_incident"
+REOPEN_INCIDENT = "reopen_incident"
+UPLOAD_INCIDENT_ATTACHMENT = "upload_incident_attachment"
+DOWNLOAD_INCIDENT_ATTACHMENT = "download_incident_attachment"
+DELETE_INCIDENT_ATTACHMENT = "delete_incident_attachment"
+DOWNLOAD_INCIDENT_ATTACHMENT = "download_incident_attachment"
+DELETE_INCIDENT_ATTACHMENT = "delete_incident_attachment"
+
+# Batch 2E — reports.
+GENERATE_REPORT = "generate_report"
+EXPORT_REPORT_EXCEL = "export_report_excel"
+EXPORT_REPORT_PDF = "export_report_pdf"
+GENERATE_STUDENT_SUMMARY = "generate_student_summary"
+
+# Batch 2F — bulk import & grade foundation.
+UPLOAD_IMPORT_FILE = "upload_import_file"
+CREATE_IMPORT_BATCH = "create_import_batch"
+MAP_IMPORT_COLUMNS = "map_import_columns"
+VALIDATE_IMPORT_BATCH = "validate_import_batch"
+CONFIRM_IMPORT_BATCH = "confirm_import_batch"
+CANCEL_IMPORT_BATCH = "cancel_import_batch"
+IMPORT_ROW_CREATED = "import_row_created"
+IMPORT_ROW_UPDATED = "import_row_updated"
+IMPORT_ROW_SKIPPED = "import_row_skipped"
+IMPORT_ROW_FAILED = "import_row_failed"
+DOWNLOAD_IMPORT_ERROR_REPORT = "download_import_error_report"
+IMPORT_GRADE_COMPONENT = "import_grade_component"
+UPDATE_GRADE_COMPONENT_FROM_IMPORT = "update_grade_component_from_import"
+
 AUTHORIZATION_DENIED = "authorization_denied"
 
 # Keys never allowed inside an audit detail payload.

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import csrf_field %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% macro steps(active) %}
+<div class="tabs" style="margin-bottom:16px">
+  <div class="tab {% if active==1 %}active{% endif %}">1. Hoja</div>
+  <div class="tab {% if active==2 %}active{% endif %}">2. Mapeo</div>
+  <div class="tab {% if active==3 %}active{% endif %}">3. Vista previa</div>
+  <div class="tab {% if active==4 %}active{% endif %}">4. Resultado</div>
+</div>
+{% endmacro %}
+
+{% block content %}
+<div class="page-head"><h1><i class="bi bi-{{ page_icon }}"></i> {{ batch.code }} · Seleccionar hoja</h1>
+  <p>Archivo: <strong>{{ batch.original_filename }}</strong> · Perfil: {{ batch.profile }}</p></div>
+
+{{ steps(1) }}
+
+<form method="post" action="/imports/{{ batch.id }}/sheet" class="card">
+  {{ csrf_field(csrf_token) }}
+  <div class="form-group">
+    <label>Hoja a importar <span class="req">*</span></label>
+    <select class="form-control" name="sheet_name" required>
+      {% for s in sheets %}<option value="{{ s }}" {% if batch.sheet_name==s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+    </select>
+    <small class="form-help">Se detectarán automáticamente los encabezados de la hoja seleccionada.</small>
+  </div>
+  <div class="form-actions">
+    <button class="btn btn-primary" type="submit"><i class="bi bi-arrow-right"></i> Continuar al mapeo</button>
+  </div>
+</form>
+<form method="post" action="/imports/{{ batch.id }}/cancel" style="margin-top:10px">{{ csrf_field(csrf_token) }}
+  <button class="btn btn-light btn-sm" type="submit"><i class="bi bi-x-lg"></i> Cancelar importación</button>
+</form>
+{% endblock %}

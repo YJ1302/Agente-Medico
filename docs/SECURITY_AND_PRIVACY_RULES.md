@@ -126,3 +126,59 @@ Uploads are **not** implemented yet. The reserved design (for Part 2):
 - [ ] Enable HTTPS everywhere; verify `https_only` cookies.
 - [ ] Turn on full audit logging and backups.
 - [ ] Review the permissions matrix against real institutional policy.
+
+---
+
+## Batch 2E — Attachments, confidentiality & audit
+
+### Secure attachments
+See `FILE_UPLOAD_SECURITY.md`. Summary: extension + MIME + magic-byte validation;
+server-generated UUID filenames; storage outside `app/static`; authorized
+download-only route with scope re-check; path-traversal-proof; draft/open-only
+deletion (Administrator override with reason); uploaded files never executed;
+upload/download/delete audited; visible pre-upload privacy warning. **Do not
+store patient-identifying clinical records.**
+
+### Confidentiality
+`visibility ∈ {normal, restricted, confidential}` on documents and incidents,
+enforced server-side (never merely hidden in the UI). Students never see
+restricted internal notes; confidential records are limited to Administrator and
+University Coordinator unless explicitly assigned; confidential data is redacted
+from alerts and excluded from audit summaries and dashboard snippets.
+
+### Audit (Batch 2E actions)
+Documents: `create_document`, `update_document`, `submit_document`,
+`start_document_review`, `approve_document`, `reject_document`,
+`archive_document`, `reopen_document`, `upload_document_attachment`,
+`download_document_attachment`, `delete_document_attachment`,
+`generate_document_pdf`.
+Incidents: `create_incident`, `update_incident`, `assign_incident`,
+`change_incident_status`, `resolve_incident`, `close_incident`,
+`dismiss_incident`, `reopen_incident`, `upload_incident_attachment` (+download/delete).
+Reports: `generate_report`, `export_report_excel`, `export_report_pdf`,
+`generate_student_summary`.
+Audit details exclude passwords, CSRF tokens, session data, file contents,
+confidential body text and unnecessary personal data (denylist + sanitizer).
+
+> Institutional legal/privacy review is required before production. The platform
+> does not claim legal compliance automatically.
+
+---
+
+## Batch 2F — Import safety & audit
+
+- Uploaded import files are validated (extension `.xlsx`/`.xlsm`, MIME, size,
+  readability, malformed workbook, duplicate sheets), stored **outside**
+  `app/static` (`var/imports/`), never publicly served, and **deleted after import**
+  unless `IMPORT_RETAIN_FILES` is set. Row count is bounded by `IMPORT_MAX_ROWS`.
+- Imports are transactional (all-or-nothing option), reuse authoritative validators,
+  and guard against stale/duplicate confirmation.
+- New audit actions: `upload_import_file`, `create_import_batch`,
+  `map_import_columns`, `validate_import_batch`, `confirm_import_batch`,
+  `cancel_import_batch`, `import_row_created/updated/skipped/failed`,
+  `download_import_error_report`, `import_grade_component`,
+  `update_grade_component_from_import`. Audit details never store passwords, CSRF
+  tokens, full file contents or unnecessary sensitive values.
+- Grade changes preserve full history (`grade_component_history`); an approved grade
+  is never overwritten silently. **No patient data** is imported.
+- Institutional legal/privacy review remains required before production.

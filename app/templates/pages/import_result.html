@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% set st_tone = {'confirmed':'success','partial':'warning','cancelled':'muted','failed':'danger'} %}
+{% set st_label = {'confirmed':'Confirmado','partial':'Parcial','cancelled':'Cancelado','failed':'Fallido'} %}
+{% set rs_tone = {'created':'success','updated':'info','skipped':'muted','failed':'danger','error':'danger','warning':'warning','valid':'success'} %}
+
+{% block content %}
+<div class="page-head" style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+  <div><h1><i class="bi bi-{{ page_icon }}"></i> {{ batch.code }}</h1>
+    <p>Perfil: {{ batch.profile }} · Archivo: {{ batch.original_filename }}</p></div>
+  <span class="chip chip-{{ st_tone.get(batch.status,'muted') }}">{{ st_label.get(batch.status, batch.status) }}</span>
+</div>
+
+<nav class="breadcrumbs" style="margin-bottom:12px">
+  <a href="/imports">Centro de Importación</a> <i class="bi bi-chevron-right"></i> <span>{{ batch.code }}</span>
+</nav>
+
+<div class="card" style="margin-bottom:16px">
+  <div class="card-head"><h3><i class="bi bi-clipboard-check"></i> Resultado</h3></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <span class="chip chip-muted">Total: {{ batch.total_rows }}</span>
+    <span class="chip chip-success">Creadas: {{ batch.created_count }}</span>
+    <span class="chip chip-info">Actualizadas: {{ batch.updated_count }}</span>
+    <span class="chip chip-muted">Omitidas: {{ batch.skipped_count }}</span>
+    <span class="chip chip-danger">Fallidas: {{ batch.failed_count }}</span>
+  </div>
+  <div style="margin-top:10px;color:var(--text-muted);font-size:.9em">
+    Modo: {{ mode_labels.get(batch.mode, batch.mode) }}
+    {% if batch.confirmed_at %} · Confirmado: {{ batch.confirmed_at.strftime('%d/%m/%Y %H:%M') }}{% endif %}
+  </div>
+  {% if batch.failed_count or batch.error_rows %}
+  <p style="margin:10px 0 0"><a class="btn btn-outline btn-sm" href="/imports/{{ batch.id }}/errors.xlsx"><i class="bi bi-file-excel"></i> Descargar reporte de errores</a></p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <div class="card-head"><h3><i class="bi bi-list-ul"></i> Detalle de filas</h3></div>
+  {% if rows %}
+  <div class="table-scroll">
+    <table class="data">
+      <thead><tr><th>Fila</th><th>Estado</th><th>Acción</th><th>Datos</th><th>Mensajes</th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>{{ r.row_number }}</td>
+          <td><span class="chip chip-{{ rs_tone.get(r.status,'muted') }}">{{ r.status }}</span></td>
+          <td>{{ r.action or '—' }}</td>
+          <td><small>{% for k, v in r.raw.items() %}{% if v %}<strong>{{ k }}:</strong> {{ v }} {% endif %}{% endfor %}</small></td>
+          <td><small>{% for m in r.messages %}<span class="chip chip-{{ 'danger' if m.level=='error' else 'warning' }}">{{ m.message }}</span> {% endfor %}</small></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<div class="empty-state"><p>Sin filas registradas.</p></div>{% endif %}
+  <div style="margin-top:14px"><a class="btn btn-outline" href="/imports"><i class="bi bi-arrow-left"></i> Volver al centro</a></div>
+</div>
+{% endblock %}

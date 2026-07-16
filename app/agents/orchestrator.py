@@ -18,6 +18,7 @@ from typing import Any
 from app.agents.base_agent import AgentResponse, BaseAgent
 from app.agents.document_agent import DocumentAgent
 from app.agents.evaluation_agent import EvaluationAgent
+from app.agents.incident_monitoring_agent import IncidentMonitoringAgent
 from app.agents.monitoring_agent import MonitoringAgent
 from app.agents.planning_agent import PlanningAgent
 from app.logging_config import get_logger
@@ -40,6 +41,7 @@ class AgentOrchestrator:
                 PlanningAgent(),
                 EvaluationAgent(),
                 DocumentAgent(),
+                IncidentMonitoringAgent(),
             )
         }
 

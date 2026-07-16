@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% set st_tone = {'uploaded':'muted','mapped':'info','validated':'warning','confirmed':'success','partial':'warning','cancelled':'muted','failed':'danger'} %}
+{% set st_label = {'uploaded':'Subido','mapped':'Mapeado','validated':'Validado','confirmed':'Confirmado','partial':'Parcial','cancelled':'Cancelado','failed':'Fallido'} %}
+
+{% block content %}
+<div class="page-head"><h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1>
+  <p>Historial auditable de todas las importaciones.</p></div>
+
+<nav class="breadcrumbs" style="margin-bottom:12px">
+  <a href="/imports">Centro de Importación</a> <i class="bi bi-chevron-right"></i> <span>Historial</span>
+</nav>
+
+<div class="card">
+  {% if batches %}
+  <div class="table-scroll"><table class="data">
+    <thead><tr><th>Código</th><th>Perfil</th><th>Archivo</th><th>Estado</th><th>Creadas</th><th>Actualizadas</th><th>Omitidas</th><th>Fallidas</th><th>Fecha</th><th></th></tr></thead>
+    <tbody>
+      {% for b in batches %}
+      <tr>
+        <td><strong>{{ b.code }}</strong></td>
+        <td>{{ b.profile }}</td>
+        <td>{{ b.original_filename }}</td>
+        <td><span class="chip chip-{{ st_tone.get(b.status,'muted') }}">{{ st_label.get(b.status, b.status) }}</span></td>
+        <td>{{ b.created_count }}</td><td>{{ b.updated_count }}</td>
+        <td>{{ b.skipped_count }}</td><td>{{ b.failed_count }}</td>
+        <td>{{ b.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+        <td><a class="btn btn-outline btn-sm" href="/imports/{{ b.id }}"><i class="bi bi-eye"></i></a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}<div class="empty-state"><div class="es-icon"><i class="bi bi-inbox"></i></div><p>Sin importaciones registradas.</p></div>{% endif %}
+</div>
+{% endblock %}

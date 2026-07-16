@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import pagination %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% set sev_tone = {'low':'muted','medium':'info','high':'warning','critical':'danger'} %}
+{% set sev_label = {'low':'Baja','medium':'Media','high':'Alta','critical':'Crítica'} %}
+{% set st_tone = {'open':'info','under_review':'warning','action_required':'warning','resolved':'success','closed':'muted','dismissed':'muted','reopened':'danger','in_review':'warning'} %}
+{% set st_label = {'open':'Abierta','under_review':'En revisión','action_required':'Requiere acción','resolved':'Resuelta','closed':'Cerrada','dismissed':'Descartada','reopened':'Reabierta','in_review':'En revisión'} %}
+
+{% block content %}
+<div class="page-head">
+  <h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1>
+  <p>{{ page_subtitle }}</p>
+</div>
+
+<div class="card" style="margin-bottom:16px">
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between">
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <span class="chip chip-muted">Abiertas por severidad:</span>
+      {% for sev in ['low','medium','high','critical'] %}
+      <span class="chip chip-{{ sev_tone[sev] }}">{{ sev_label[sev] }}: {{ counts.get(sev, 0) }}</span>
+      {% endfor %}
+    </div>
+    {% if can_create %}<a class="btn btn-primary btn-sm" href="/incidents/new"><i class="bi bi-plus-lg"></i> Nueva incidencia</a>{% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <form class="filter-bar" method="get" action="/incidents">
+    <div class="filter-item" style="flex:2"><label>Buscar</label>
+      <input class="form-control" type="text" name="q" value="{{ q }}" placeholder="Código o título…"></div>
+    <div class="filter-item"><label>Estado</label>
+      <select class="form-control" name="status"><option value="">Todos</option>
+        {% for st, lbl in st_label.items() if st not in ['in_review'] %}
+        <option value="{{ st }}" {% if status==st %}selected{% endif %}>{{ lbl }}</option>{% endfor %}
+      </select></div>
+    <div class="filter-item"><label>Severidad</label>
+      <select class="form-control" name="severity"><option value="">Todas</option>
+        {% for sev, lbl in sev_label.items() %}
+        <option value="{{ sev }}" {% if severity==sev %}selected{% endif %}>{{ lbl }}</option>{% endfor %}
+      </select></div>
+    <div class="filter-item"><label>Tipo</label>
+      <select class="form-control" name="incident_type"><option value="">Todos</option>
+        {% for code, lbl in incident_types.items() %}
+        <option value="{{ code }}" {% if incident_type==code %}selected{% endif %}>{{ lbl }}</option>{% endfor %}
+      </select></div>
+    <button class="btn btn-outline btn-sm" type="submit"><i class="bi bi-funnel"></i></button>
+    <a class="btn btn-light btn-sm" href="/incidents"><i class="bi bi-x-lg"></i></a>
+  </form>
+
+  <div class="result-count" style="margin:10px 0">{{ page.total }} resultado(s){% if page.total %} · {{ page.start_index }}–{{ page.end_index }}{% endif %}</div>
+
+  {% if page.items %}
+  <div class="table-scroll">
+    <table class="data">
+      <thead><tr><th>Código</th><th>Título</th><th>Tipo</th><th>Interno</th><th>Severidad</th><th>Estado</th><th></th></tr></thead>
+      <tbody>
+        {% for i in page.items %}
+        <tr {% if i.severity=='critical' and i.status not in ['closed','dismissed'] %}style="background:rgba(220,53,69,.06)"{% endif %}>
+          <td><strong>{{ i.code }}</strong></td>
+          <td>{{ i.title }}
+            {% if i.visibility=='confidential' %}<span class="chip chip-danger"><i class="bi bi-shield-lock"></i></span>{% endif %}</td>
+          <td>{{ incident_types.get(i.incident_type, i.incident_type) }}</td>
+          <td>{{ i.student.full_name if i.student else '—' }}</td>
+          <td><span class="chip chip-{{ sev_tone.get(i.severity,'muted') }}">{{ sev_label.get(i.severity, i.severity) }}</span></td>
+          <td><span class="chip chip-{{ st_tone.get(i.status,'muted') }}">{{ st_label.get(i.status, i.status) }}</span></td>
+          <td><a class="btn btn-outline btn-sm" href="/incidents/{{ i.id }}"><i class="bi bi-eye"></i></a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ pagination(page, base_qs) }}
+  {% else %}
+  <div class="empty-state"><div class="es-icon"><i class="bi bi-check2-circle"></i></div><p>No hay incidencias para los filtros seleccionados.</p></div>
+  {% endif %}
+</div>
+{% endblock %}

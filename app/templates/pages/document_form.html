@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import csrf_field, error_summary %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1>
+  <p>Los documentos se crean como <strong>borrador</strong> y requieren revisión y aprobación humana. Ningún documento se envía automáticamente.</p>
+</div>
+
+<nav class="breadcrumbs" style="margin-bottom:12px">
+  <a href="/documents">Documentos</a> <i class="bi bi-chevron-right"></i>
+  <span>{{ 'Nuevo' if mode=='create' else doc.code }}</span>
+</nav>
+
+{{ error_summary(errors) }}
+
+{% if mode=='create' and templates %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-head"><h3><i class="bi bi-files"></i> Plantillas</h3></div>
+  <p style="margin:0 0 8px;color:var(--text-muted)">Use una plantilla para generar un borrador editable (no aprobado).</p>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    {% for t in templates %}
+    <a class="btn btn-outline btn-sm" href="/documents/new?template={{ t.code }}"><i class="bi bi-file-text"></i> {{ t.name }}</a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<form method="post" action="{{ '/documents' if mode=='create' else '/documents/' ~ doc.id ~ '/edit' }}" class="card">
+  {{ csrf_field(csrf_token) }}
+  <div class="form-grid">
+    <div class="form-group" style="grid-column:1/-1">
+      <label>Título <span class="req">*</span></label>
+      <input class="form-control {% if errors.title %}is-invalid{% endif %}" name="title" value="{{ values.title or '' }}" required>
+      {% if errors.title %}<div class="invalid-feedback">{{ errors.title }}</div>{% endif %}
+    </div>
+
+    <div class="form-group">
+      <label>Tipo de documento <span class="req">*</span></label>
+      <select class="form-control {% if errors.doc_type %}is-invalid{% endif %}" name="doc_type" required>
+        <option value="">— Seleccione —</option>
+        {% for code, lbl in doc_types.items() %}
+        <option value="{{ code }}" {% if values.doc_type==code %}selected{% endif %}>{{ lbl }}</option>
+        {% endfor %}
+      </select>
+      {% if errors.doc_type %}<div class="invalid-feedback">{{ errors.doc_type }}</div>{% endif %}
+    </div>
+
+    <div class="form-group">
+      <label>Prioridad</label>
+      <select class="form-control" name="priority">
+        {% for p in priorities %}
+        <option value="{{ p }}" {% if values.priority==p or (not values.priority and p=='normal') %}selected{% endif %}>{{ p }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    {% if not is_student %}
+    <div class="form-group">
+      <label>Visibilidad</label>
+      <select class="form-control" name="visibility">
+        {% for v in visibilities %}
+        <option value="{{ v }}" {% if values.visibility==v or (not values.visibility and v=='normal') %}selected{% endif %}>{{ v }}</option>
+        {% endfor %}
+      </select>
+      <small class="form-help">Confidencial: solo Administrador y Coordinador Universitario.</small>
+    </div>
+
+    <div class="form-group">
+      <label>Interno (opcional)</label>
+      <select class="form-control" name="student_id">
+        <option value="">—</option>
+        {% for s in students %}
+        <option value="{{ s.id }}" {% if values.student_id|string==s.id|string %}selected{% endif %}>{{ s.full_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Sede (opcional)</label>
+      <select class="form-control" name="sede_id">
+        <option value="">—</option>
+        {% for s in sedes %}
+        <option value="{{ s.id }}" {% if values.sede_id|string==s.id|string %}selected{% endif %}>{{ s.short_name or s.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+
+    <div class="form-group">
+      <label>Origen</label>
+      <input class="form-control" name="origin" value="{{ values.origin or '' }}" placeholder="Remitente / unidad">
+    </div>
+    <div class="form-group">
+      <label>Destino</label>
+      <input class="form-control" name="destination" value="{{ values.destination or '' }}" placeholder="Destinatario institucional">
+    </div>
+
+    <div class="form-group" style="grid-column:1/-1">
+      <label>Asunto</label>
+      <input class="form-control" name="subject" value="{{ values.subject or '' }}">
+    </div>
+    <div class="form-group" style="grid-column:1/-1">
+      <label>Resumen</label>
+      <textarea class="form-control" name="summary" rows="2">{{ values.summary or '' }}</textarea>
+    </div>
+    <div class="form-group" style="grid-column:1/-1">
+      <label>Cuerpo / contenido</label>
+      <textarea class="form-control" name="body" rows="10">{{ values.body or '' }}</textarea>
+    </div>
+
+    {% if not is_student %}
+    <div class="form-group" style="grid-column:1/-1">
+      <label>Notas internas <span class="chip chip-warning">Restringido</span></label>
+      <textarea class="form-control" name="internal_notes" rows="3" placeholder="No visible para el estudiante.">{{ values.internal_notes or '' }}</textarea>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="form-actions">
+    <button class="btn btn-primary" type="submit"><i class="bi bi-save"></i> {{ 'Crear borrador' if mode=='create' else 'Guardar cambios' }}</button>
+    <a class="btn btn-light" href="{{ '/documents' if mode=='create' else '/documents/' ~ doc.id }}">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

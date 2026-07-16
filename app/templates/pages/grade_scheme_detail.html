@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import csrf_field %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% set gc_tone = {'draft':'muted','imported':'info','approved':'success'} %}
+
+{% block content %}
+<div class="page-head"><h1><i class="bi bi-{{ page_icon }}"></i> {{ scheme.name }}</h1>
+  <p>{{ scheme.code }} · v{{ scheme.version }} · Estado: {{ scheme.status }}</p></div>
+
+<nav class="breadcrumbs" style="margin-bottom:12px">
+  <a href="/grades">Notas académicas</a> <i class="bi bi-chevron-right"></i> <span>{{ scheme.name }}</span>
+</nav>
+
+{% if final_note %}
+<div class="flash flash-warning" style="margin-bottom:16px"><i class="bi bi-exclamation-triangle"></i>
+  <span><strong>{{ final_note }}.</strong> No se calcula la nota final: los pesos de los componentes no están confirmados. Un agente futuro nunca inventará los pesos.</span></div>
+{% endif %}
+
+<div class="card" style="margin-bottom:16px">
+  <div class="card-head"><h3><i class="bi bi-list-columns"></i> Componentes del esquema</h3></div>
+  <div class="table-scroll"><table class="data">
+    <thead><tr><th>Orden</th><th>Componente</th><th>Categoría</th><th>Peso %</th><th>Requerido</th><th>Máx.</th></tr></thead>
+    <tbody>
+      {% for c in components %}
+      <tr>
+        <td>{{ c.display_order }}</td><td>{{ c.name }}</td>
+        <td>{{ categories.get(c.category, c.category) }}</td>
+        <td>{% if c.weight_percent is none %}<span class="chip chip-warning">—</span>{% else %}{{ c.weight_percent }}%{% endif %}</td>
+        <td>{{ 'Sí' if c.is_required else 'No' }}</td><td>{{ c.max_score|int }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+
+<div class="card">
+  <div class="card-head"><h3><i class="bi bi-grid-3x3"></i> Matriz de notas por interno</h3></div>
+  <p style="color:var(--text-muted);font-size:.9em">Una celda vacía significa <strong>no registrado</strong> (distinto de 0). El cero se conserva como cero.</p>
+  {% if students %}
+  <div class="table-scroll"><table class="data">
+    <thead><tr><th>Interno</th>{% for c in components %}<th>{{ c.name }}</th>{% endfor %}</tr></thead>
+    <tbody>
+      {% for s in students %}
+      <tr>
+        <td>{{ s.full_name }}</td>
+        {% for c in components %}
+          {% set cell = cells.get(s.id, {}).get(c.id) %}
+          <td>
+            {% if cell is none %}<span style="color:var(--text-muted)">—</span>
+            {% elif cell.score is none %}<span class="chip chip-muted">sin registro</span>
+            {% else %}
+              <span class="chip chip-{{ gc_tone.get(cell.status,'muted') }}">{{ '%.1f'|format(cell.score) }}</span>
+              {% if cell.status != 'approved' %}
+              <form method="post" action="/grades/component/{{ cell.id }}/approve" style="display:inline">{{ csrf_field(csrf_token) }}
+                <button class="btn btn-outline btn-sm" title="Aprobar"><i class="bi bi-check2"></i></button></form>
+              {% endif %}
+            {% endif %}
+          </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}
+  <div class="empty-state"><div class="es-icon"><i class="bi bi-inbox"></i></div>
+    <p>Sin notas cargadas para este esquema.</p>
+    <a class="btn btn-primary btn-sm" href="/imports/new?profile=grade_components"><i class="bi bi-upload"></i> Importar componentes de nota</a></div>
+  {% endif %}
+</div>
+{% endblock %}

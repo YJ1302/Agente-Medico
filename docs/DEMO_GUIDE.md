@@ -189,3 +189,49 @@ real AI-assisted features, always with human approval."*
 
 Re-run `python -m app.seed` to restore a clean dataset (alerts, pending
 evaluation and the missing-tutor scenario are recreated).
+
+---
+
+## Batch 2E demo — Documents, Incidents, Reports
+
+Seeded data (fictional): 9 documents covering every status (incl. a resignation
+example modelled on the reference, a student change-of-sede draft, and an overdue
+document), 6 incidents (open/low, high, critical, resolved, confidential, overdue)
+and 5 document templates.
+
+Suggested walkthrough:
+1. **Admin / University** → `/documents`: open the resignation (`DOC-2026-0007`),
+   view tabs, download the formal **PDF**. Take a draft through
+   submit → review → approve → archive.
+2. **Sede Coordinator** (`sede@`) → confirm own-sede-only visibility; try a
+   sede-2 document/incident URL → 403.
+3. **Incidents** → open the **critical** incident (prominent banner); resolve
+   (requires comments) then close (requires resolution). Note high/critical
+   alerts on `/alerts`.
+4. **Reports** → `/reports`: view a report, export **Excel** and **PDF**; open a
+   **student internship summary** and export it.
+5. **Student** (`student@`) → sees only own documents/incidents and only their own
+   internship summary; cannot open management reports.
+
+Attachments: on a **draft** document, Adjuntos tab → upload a PDF/PNG; note the
+privacy warning and that only authorized roles can download.
+
+---
+
+## Batch 2F demo — Bulk import & grades
+
+Seeded: 2 grade schemes (null weights), example blank-vs-zero scores, and 3 import
+batches (one confirmed, one with errors, one grade preview).
+
+Walkthrough (Admin or University):
+1. **Centro de Importación** (`/imports`) → pick **Internos** → upload a small
+   `.xlsx` (columns Código, Nombre, DNI/CE, Correo, Ciclo, Institución, Sede) →
+   select sheet → adjust the auto-mapping → choose a mode → **Validar** → review the
+   preview (valid/warning/error counts) → **Confirmar**. Download the error report
+   if any row failed.
+2. Try mode **«Cancelar todo si hay errores»** with one bad row → nothing is written.
+3. **Notas académicas** (`/grades`) → open a scheme → note **"Fórmula pendiente de
+   confirmación"** and the matrix where a blank cell shows "sin registro" (distinct
+   from 0). Import grade components via `/imports/new?profile=grade_components`
+   (choose the scheme first).
+4. Confirm RBAC: a Student gets **403** on `/imports`; a Tutor cannot import master data.

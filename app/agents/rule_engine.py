@@ -21,6 +21,13 @@ from typing import Callable
 from app.agents.base_agent import AgentFinding
 from app.models.operations import (
     ALERT_ACTIVITY_TARGET_AT_RISK,
+    ALERT_CRITICAL_INCIDENT,
+    ALERT_DOC_OVERDUE,
+    ALERT_DOC_REJECTED_PENDING,
+    ALERT_DOC_WAITING_REVIEW,
+    ALERT_HIGH_SEVERITY_INCIDENT,
+    ALERT_INCIDENT_DUE_SOON,
+    ALERT_INCIDENT_OVERDUE,
     ALERT_INCOMPLETE_PROFILE,
     ALERT_INSTITUTION_MISMATCH,
     ALERT_MISSING_TUTOR,
@@ -35,6 +42,7 @@ from app.models.operations import (
     ALERT_SUBMITTED_EVALUATION,
     ALERT_TUTOR_SEDE_MISMATCH,
     ALERT_TUTOR_VERIFICATION_BACKLOG,
+    ALERT_UNRESOLVED_INCIDENT_NEAR_ROTATION_END,
 )
 from app.repositories.repositories import RepositoryBundle
 
@@ -406,6 +414,182 @@ def rule_submitted_evaluation(
     return findings
 
 
+# ---------------------------------------------------------------------------
+# Batch 2E — document & incident rules.
+# ---------------------------------------------------------------------------
+def rule_document_waiting_review(
+    repos: RepositoryBundle, today: date | None = None
+) -> list[AgentFinding]:
+    """Documents submitted and awaiting review by the next responsible role."""
+    from app.models.base import DocumentStatus
+    findings: list[AgentFinding] = []
+    for d in repos.documents.all_active():
+        if d.status == DocumentStatus.SUBMITTED.value:
+            findings.append(AgentFinding(
+                code=ALERT_DOC_WAITING_REVIEW, title="Documento en espera de revisión",
+                detail=f"[{d.code}] {d.title} — enviado y a la espera de revisión.",
+                severity="info", entity_type="document", entity_id=d.id,
+            ))
+    return findings
+
+
+def rule_document_rejected_pending_correction(
+    repos: RepositoryBundle, today: date | None = None
+) -> list[AgentFinding]:
+    """Rejected documents awaiting correction by their author."""
+    from app.models.base import DocumentStatus
+    findings: list[AgentFinding] = []
+    for d in repos.documents.all_active():
+        if d.status == DocumentStatus.REJECTED.value:
+            findings.append(AgentFinding(
+                code=ALERT_DOC_REJECTED_PENDING, title="Documento rechazado sin corregir",
+                detail=f"[{d.code}] {d.title} — rechazado; requiere corrección.",
+                severity="warning", entity_type="document", entity_id=d.id,
+            ))
+    return findings
+
+
+def rule_document_overdue(
+    repos: RepositoryBundle, today: date | None = None
+) -> list[AgentFinding]:
+    """Documents stuck in submitted/under_review beyond the configured window
+    or past an explicit due date."""
+    from app.config import settings
+    from app.models.base import DocumentStatus
+    today = today or date.today()
+    cutoff = today - timedelta(days=settings.document_overdue_days)
+    open_states = {DocumentStatus.SUBMITTED.value, DocumentStatus.UNDER_REVIEW.value}
+    findings: list[AgentFinding] = []
+    for d in repos.documents.all_active():
+        if d.status not in open_states:
+            continue
+        stale = d.submitted_at and d.submitted_at.date() <= cutoff
+        past_due = d.due_date and d.due_date < today
+        if stale or past_due:
+            findings.append(AgentFinding(
+                code=ALERT_DOC_OVERDUE, title="Documento vencido en gestión",
+                detail=f"[{d.code}] {d.title} — pendiente de decisión más de lo esperado.",
+                severity="critical", entity_type="document", entity_id=d.id,
+            ))
+    return findings
+
+
+def _incident_terminal():
+    from app.models.base import IncidentStatus
+    return {IncidentStatus.CLOSED.value, IncidentStatus.DISMISSED.value,
+            IncidentStatus.RESOLVED.value}
+
+
+def _inc_label(inc) -> str:
+    """Human label for an incident, redacting the title when confidential so
+    confidential data never leaks into alerts/notifications."""
+    from app.models.base import VisibilityLevel
+    if inc.visibility == VisibilityLevel.CONFIDENTIAL.value:
+        return "(incidencia confidencial)"
+    return inc.title
+
+
+def rule_high_severity_incident(
+    repos: RepositoryBundle, today: date | None = None
+) -> list[AgentFinding]:
+    """Open high-severity incidents requiring attention."""
+    from app.models.base import IncidentSeverity
+    terminal = _incident_terminal()
+    findings: list[AgentFinding] = []
+    for inc in repos.incidents.all_active():
+        if inc.severity == IncidentSeverity.HIGH.value and inc.status not in terminal:
+            findings.append(AgentFinding(
+                code=ALERT_HIGH_SEVERITY_INCIDENT, title="Incidencia de severidad alta",
+                detail=f"[{inc.code}] {_inc_label(inc)} — severidad alta sin resolver.",
+                severity="warning", entity_type="incident", entity_id=inc.id,
+            ))
+    return findings
+
+
+def rule_critical_incident(
+    repos: RepositoryBundle, today: date | None = None
+) -> list[AgentFinding]:
+    """Open critical incidents — surfaced prominently on dashboards."""
+    from app.models.base import IncidentSeverity
+    terminal = _incident_terminal()
+    findings: list[AgentFinding] = []
+    for inc in repos.incidents.all_active():
+        if inc.severity == IncidentSeverity.CRITICAL.value and inc.status not in terminal:
+            findings.append(AgentFinding(
+                code=ALERT_CRITICAL_INCIDENT, title="Incidencia crítica",
+                detail=f"[{inc.code}] {_inc_label(inc)} — severidad crítica sin resolver.",
+                severity="critical", entity_type="incident", entity_id=inc.id,
+            ))
+    return findings
+
+
+def rule_incident_due_soon(
+    repos: RepositoryBundle, today: date | None = None
+) -> list[AgentFinding]:
+    """Incidents with a due date within the configured window."""
+    from app.config import settings
+    today = today or date.today()
+    cutoff = today + timedelta(days=settings.incident_due_soon_days)
+    terminal = _incident_terminal()
+    findings: list[AgentFinding] = []
+    for inc in repos.incidents.all_active():
+        if inc.status in terminal or not inc.due_date:
+            continue
+        if today <= inc.due_date <= cutoff:
+            findings.append(AgentFinding(
+                code=ALERT_INCIDENT_DUE_SOON, title="Incidencia por vencer",
+                detail=f"[{inc.code}] {_inc_label(inc)} — vence el {inc.due_date:%d/%m/%Y}.",
+                severity="warning", entity_type="incident", entity_id=inc.id,
+            ))
+    return findings
+
+
+def rule_incident_overdue(
+    repos: RepositoryBundle, today: date | None = None
+) -> list[AgentFinding]:
+    """Incidents past their due date and still unresolved."""
+    today = today or date.today()
+    terminal = _incident_terminal()
+    findings: list[AgentFinding] = []
+    for inc in repos.incidents.all_active():
+        if inc.status in terminal or not inc.due_date:
+            continue
+        if inc.due_date < today:
+            findings.append(AgentFinding(
+                code=ALERT_INCIDENT_OVERDUE, title="Incidencia vencida",
+                detail=f"[{inc.code}] {_inc_label(inc)} — venció el {inc.due_date:%d/%m/%Y}.",
+                severity="critical", entity_type="incident", entity_id=inc.id,
+            ))
+    return findings
+
+
+def rule_unresolved_incident_near_rotation_end(
+    repos: RepositoryBundle, today: date | None = None
+) -> list[AgentFinding]:
+    """Unresolved incidents whose linked rotation ends within the window."""
+    from app.config import settings
+    from app.models.base import AssignmentStatus
+    today = today or date.today()
+    cutoff = today + timedelta(days=settings.incident_rotation_end_days)
+    terminal = _incident_terminal()
+    findings: list[AgentFinding] = []
+    for inc in repos.incidents.all_active():
+        if inc.status in terminal or not inc.student_id:
+            continue
+        for a in repos.assignments.search(student_id=inc.student_id):
+            if a.status == AssignmentStatus.ACTIVE.value and a.end_date \
+                    and today <= a.end_date <= cutoff:
+                findings.append(AgentFinding(
+                    code=ALERT_UNRESOLVED_INCIDENT_NEAR_ROTATION_END,
+                    title="Incidencia sin resolver cerca del fin de rotación",
+                    detail=(f"[{inc.code}] {_inc_label(inc)} — la rotación del interno finaliza "
+                            f"el {a.end_date:%d/%m/%Y} y la incidencia sigue abierta."),
+                    severity="critical", entity_type="incident", entity_id=inc.id,
+                ))
+                break
+    return findings
+
+
 # Registry of rules: name -> callable. The engine iterates this so new rules
 # are added in exactly one place.
 RuleFn = Callable[[RepositoryBundle, "date | None"], list[AgentFinding]]
@@ -426,6 +610,14 @@ RULES: dict[str, RuleFn] = {
     ALERT_TUTOR_VERIFICATION_BACKLOG: rule_tutor_verification_backlog,
     ALERT_RETURNED_EVALUATION: rule_returned_evaluation,
     ALERT_SUBMITTED_EVALUATION: rule_submitted_evaluation,
+    ALERT_DOC_WAITING_REVIEW: rule_document_waiting_review,
+    ALERT_DOC_REJECTED_PENDING: rule_document_rejected_pending_correction,
+    ALERT_DOC_OVERDUE: rule_document_overdue,
+    ALERT_HIGH_SEVERITY_INCIDENT: rule_high_severity_incident,
+    ALERT_CRITICAL_INCIDENT: rule_critical_incident,
+    ALERT_INCIDENT_DUE_SOON: rule_incident_due_soon,
+    ALERT_INCIDENT_OVERDUE: rule_incident_overdue,
+    ALERT_UNRESOLVED_INCIDENT_NEAR_ROTATION_END: rule_unresolved_incident_near_rotation_end,
 }
 
 

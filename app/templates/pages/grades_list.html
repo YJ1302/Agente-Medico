@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% set st_tone = {'draft':'muted','active':'success','archived':'muted'} %}
+
+{% block content %}
+<div class="page-head"><h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1><p>{{ page_subtitle }}</p></div>
+
+<div class="flash flash-warning" style="margin-bottom:16px"><i class="bi bi-info-circle"></i>
+  <span><strong>Fórmula pendiente de confirmación:</strong> el sistema almacena los componentes de nota pero no calcula la nota final hasta que se confirmen los pesos oficiales.</span></div>
+
+<div class="card">
+  {% if schemes %}
+  <div class="table-scroll"><table class="data">
+    <thead><tr><th>Código</th><th>Esquema</th><th>Versión</th><th>Estado</th><th>Pesos</th><th>Componentes</th><th></th></tr></thead>
+    <tbody>
+      {% for s in schemes %}
+      <tr>
+        <td><strong>{{ s.code }}</strong></td>
+        <td>{{ s.name }}</td>
+        <td>v{{ s.version }}</td>
+        <td><span class="chip chip-{{ st_tone.get(s.status,'muted') }}">{{ s.status }}</span></td>
+        <td>{% if s.weights_confirmed %}<span class="chip chip-success">Confirmados</span>{% else %}<span class="chip chip-warning">Pendientes</span>{% endif %}</td>
+        <td>{{ s.components|length }}</td>
+        <td><a class="btn btn-outline btn-sm" href="/grades/{{ s.id }}"><i class="bi bi-eye"></i></a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}
+  <div class="empty-state"><div class="es-icon"><i class="bi bi-123"></i></div>
+    <p>No hay esquemas de nota. Se crean como parte de la carga de componentes de nota.</p>
+    <a class="btn btn-primary btn-sm" href="/imports/new?profile=grade_components"><i class="bi bi-upload"></i> Importar componentes de nota</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

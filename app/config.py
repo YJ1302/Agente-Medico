@@ -83,6 +83,34 @@ class Settings(BaseSettings):
     # tutor_verification_backlog.
     tutor_verification_backlog_threshold: int = 8
 
+    # Documents & incidents (Batch 2E) ------------------------------------
+    # A document waiting review longer than this many days triggers
+    # document_overdue (also honoured against an explicit due_date).
+    document_overdue_days: int = 5
+    # An incident due within this many days triggers incident_due_soon.
+    incident_due_soon_days: int = 3
+    # An unresolved incident whose rotation ends within this many days triggers
+    # unresolved_incident_near_rotation_end.
+    incident_rotation_end_days: int = 7
+
+    # Secure attachments (Batch 2E) ---------------------------------------
+    # Maximum upload size in megabytes (configurable per deployment).
+    attachment_max_mb: int = 10
+    # Directory (relative to the project root) where uploaded files are stored.
+    # Intentionally OUTSIDE app/static so files are never publicly served.
+    attachment_storage_dir: str = "var/attachments"
+
+    # Bulk import (Batch 2F) ----------------------------------------------
+    # Maximum import file size in megabytes.
+    import_max_mb: int = 8
+    # Maximum data rows processed per import batch (safety/limits).
+    import_max_rows: int = 2000
+    # Temp directory (relative to project root) for uploaded import files;
+    # OUTSIDE app/static. Files are deleted after import unless retention is on.
+    import_storage_dir: str = "var/imports"
+    # Retain the uploaded file after import (audit retention). Default: delete.
+    import_retain_files: bool = False
+
     model_config = SettingsConfigDict(
         env_file=BASE_DIR / ".env",
         env_file_encoding="utf-8",
@@ -98,6 +126,28 @@ class Settings(BaseSettings):
     @property
     def institution_name(self) -> str:
         return "Universidad Peruana Unión"
+
+    @property
+    def attachment_max_bytes(self) -> int:
+        return self.attachment_max_mb * 1024 * 1024
+
+    @property
+    def attachment_storage_path(self) -> Path:
+        """Absolute path to the private attachment storage directory."""
+        p = self.attachment_storage_dir
+        path = Path(p) if Path(p).is_absolute() else (BASE_DIR / p)
+        return path.resolve()
+
+    @property
+    def import_max_bytes(self) -> int:
+        return self.import_max_mb * 1024 * 1024
+
+    @property
+    def import_storage_path(self) -> Path:
+        """Absolute path to the private import upload directory."""
+        p = self.import_storage_dir
+        path = Path(p) if Path(p).is_absolute() else (BASE_DIR / p)
+        return path.resolve()
 
 
 @lru_cache
