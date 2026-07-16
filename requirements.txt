@@ -20,6 +20,15 @@ email-validator==2.2.0
 openpyxl==3.1.5
 fpdf2==2.8.7
 
+# AI Coordinator Assistant (Phase 3A/3B) — used only to *summarize*
+# deterministic query results (never to query the database directly).
+# Optional at runtime: the assistant's deterministic fallback works even if
+# neither package is installed, or the selected provider's API key is unset
+# (both are lazy-imported and guarded). Install whichever provider you use
+# via AI_ASSISTANT_PROVIDER; both may be installed side by side.
+anthropic==0.40.0
+google-genai==1.2.0
+
 # Testing
 pytest==8.3.4
 httpx==0.28.1

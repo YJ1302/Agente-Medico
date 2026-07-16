@@ -4,6 +4,35 @@ Architectural and business decisions, with rationale. Newest first.
 
 ---
 
+### D-030 · Deterministic query + optional LLM phrasing, not LLM-driven retrieval (Phase 3A)
+**Decision:** The AI Coordinator Assistant always resolves a question to one
+of 11 fixed intents with plain keyword/substring matching against the
+caller's own scoped records, then runs a plain repository query for that
+intent. An LLM, if configured, is called **only afterwards** to phrase the
+already-computed result as prose; it never receives database access, a
+schema, or free-form retrieval instructions, and removing it changes only the
+wording of the answer, never its content. **Why:** the spec requires the
+assistant to "use deterministic database queries first" and "never send the
+whole database to the model." Letting an LLM parse the question into a
+query (e.g. text-to-SQL) would make the actual data returned depend on model
+behavior, which is unauditable and could not guarantee the per-role/per-sede
+scope this codebase enforces everywhere else (`ReportService`,
+`GradeService`, `authorization.py`). Keeping retrieval 100% deterministic
+means the worst a misbehaving or adversarial question can do is fail to
+match any intent — it can never expand what data is reachable.
+
+### D-031 · Grade-related assistant questions inherit the `/grades` RBAC boundary (Phase 3A)
+**Decision:** `grade_components_missing` and `cross_sheet_inconsistencies`
+are registered with `ROLES_GLOBAL_ONLY` (Admin + University Coordinator),
+matching `GradeService`'s existing rule that Sede Coordinators never see the
+raw grade matrix (Batch 2F). The assistant's `can_ask()` re-checks this
+per-question, independent of the route-level `require_management` guard.
+**Why:** without a second per-intent check, any coordinator role able to
+reach `/assistant` could ask a grade question in natural language and bypass
+the narrower `/grades` boundary — defense in depth mirrors the
+already-established pattern of route guard + record-level scope predicate
+(`authorization.py`) used throughout the codebase.
+
 ### D-029 · Admin reopen targets `in_progress`, not a new "reopened" status (Batch 2D)
 **Decision:** Administrator reopen of an approved evaluation transitions it to
 `in_progress` (editable by the tutor again), recording `reopened_at`/

@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% import "partials/forms.html" as forms %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1>
+  <p>{{ page_subtitle }} Responde únicamente con datos existentes dentro de su ámbito; nunca inventa cifras ni
+  calcula notas finales.</p>
+</div>
+
+<div class="card" style="margin-bottom:16px">
+  <div class="card-head"><h3><i class="bi bi-chat-dots"></i> Pregunte al asistente</h3></div>
+  <form method="post" action="/assistant/ask">
+    {{ forms.csrf_field(csrf_token) }}
+    <textarea name="question" rows="2" maxlength="500" placeholder="Ej: ¿Qué internos no tienen tutor asignado?"
+              style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);font-family:inherit"
+              required>{{ question_text or "" }}</textarea>
+    <div style="margin-top:8px">
+      <button class="btn btn-primary btn-sm" type="submit"><i class="bi bi-send"></i> Preguntar</button>
+    </div>
+  </form>
+</div>
+
+<div class="card" style="margin-bottom:16px">
+  <div class="card-head"><h3><i class="bi bi-question-circle"></i> Preguntas disponibles para su rol</h3></div>
+  <ul style="margin:0;padding-left:18px;color:var(--text-muted);font-size:13.5px">
+    {% for key, title in questions %}
+    <li>{{ title }}</li>
+    {% endfor %}
+  </ul>
+</div>
+
+{% if answer %}
+<div class="card">
+  <div class="card-head"><h3><i class="bi bi-robot"></i> {{ answer.title }}</h3></div>
+
+  {% if answer.llm_narrative %}
+    <p><strong>{{ answer.llm_narrative }}</strong></p>
+    <p style="color:var(--text-muted);font-size:12.5px"><i class="bi bi-cpu"></i> Resumen generado por IA a partir
+    del resultado calculado abajo. La IA no consultó la base de datos ni calculó cifras.</p>
+  {% else %}
+    <p><strong>{{ answer.narrative }}</strong></p>
+    <p style="color:var(--text-muted);font-size:12.5px"><i class="bi bi-shield-check"></i> Respuesta determinista
+    (sin resumen de IA disponible en este momento).</p>
+  {% endif %}
+
+  {% if answer.notes %}
+    {% for note in answer.notes %}
+    <p style="color:var(--text-muted);font-size:13px">{{ note }}</p>
+    {% endfor %}
+  {% endif %}
+
+  {% if answer.sources %}
+  <p style="font-size:12.5px;color:var(--text-muted)">
+    Fuentes: {% for src in answer.sources %}{{ src.label }} ({{ src.count }}){% if not loop.last %}, {% endif %}{% endfor %}
+  </p>
+  {% endif %}
+
+  {% if answer.rows %}
+  <div class="table-scroll">
+    <table class="data">
+      <thead><tr>{% for h in answer.headers %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        {% for row in answer.rows %}
+        <tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% elif answer.found %}
+    <div class="empty-state"><p>Sin filas de detalle.</p></div>
+  {% else %}
+    <div class="empty-state"><div class="es-icon"><i class="bi bi-search"></i></div>
+      <p>No se encontraron datos para esta consulta dentro de su ámbito.</p></div>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

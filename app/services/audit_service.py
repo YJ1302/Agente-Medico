@@ -137,6 +137,11 @@ DOWNLOAD_IMPORT_ERROR_REPORT = "download_import_error_report"
 IMPORT_GRADE_COMPONENT = "import_grade_component"
 UPDATE_GRADE_COMPONENT_FROM_IMPORT = "update_grade_component_from_import"
 
+# Phase 3A — AI Coordinator Assistant.
+AI_ASSISTANT_QUERY = "ai_assistant_query"
+AI_ASSISTANT_RESPONSE = "ai_assistant_response"
+AI_ASSISTANT_RATE_LIMITED = "ai_assistant_rate_limited"
+
 AUTHORIZATION_DENIED = "authorization_denied"
 
 # Keys never allowed inside an audit detail payload.

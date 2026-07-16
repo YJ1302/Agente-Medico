@@ -111,6 +111,29 @@ class Settings(BaseSettings):
     # Retain the uploaded file after import (audit retention). Default: delete.
     import_retain_files: bool = False
 
+    # AI Coordinator Assistant (Phase 3A/3B) --------------------------------
+    # Master switch. Even when disabled (or the API key is empty/invalid or
+    # the provider SDK is unavailable), the assistant still answers every
+    # supported question using its deterministic fallback narrative — only
+    # the natural-language *summary* wording depends on this flag.
+    ai_assistant_enabled: bool = False
+    # "anthropic" (default, Claude) or "gemini" (Google Gemini). Only the
+    # selected provider's API key needs to be set.
+    ai_assistant_provider: str = "anthropic"
+    # Model id for whichever provider is selected above — e.g.
+    # "claude-3-5-haiku-20241022" for Anthropic, "gemini-2.0-flash" for Gemini.
+    ai_assistant_model: str = "claude-3-5-haiku-20241022"
+    # Secrets — read from the environment only, never logged/audited/rendered.
+    anthropic_api_key: str | None = None
+    gemini_api_key: str | None = None
+    # Per-call timeout so a slow/unreachable provider never hangs a request.
+    ai_assistant_timeout_seconds: float = 8.0
+    # In-process sliding-window rate limit, per logged-in user.
+    ai_assistant_rate_limit_per_minute: int = 10
+    # Query thresholds used by the assistant's deterministic builders.
+    ai_assistant_rotation_ending_days: int = 14
+    ai_assistant_low_activity_ratio: float = 0.5
+
     model_config = SettingsConfigDict(
         env_file=BASE_DIR / ".env",
         env_file_encoding="utf-8",

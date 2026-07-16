@@ -200,3 +200,38 @@ Every unauthorized request returns 403 (or a safe redirect), writes an
 - **Grade viewing** (`/grades`): Administrator and University Coordinator only.
   Students never see the raw grade matrix.
 - Every unauthorized import/grade request returns **403** and is audited.
+
+---
+
+## Phase 3A — AI Coordinator Assistant permissions
+
+| Question | Admin | University | Sede Coord (own sede) | Tutor | Student |
+|----------|:---:|:---:|:---:|:---:|:---:|
+| Students with pending evaluations | ✔ | ✔ | ✔ | — | — |
+| Students with low activity progress | ✔ | ✔ | ✔ | — | — |
+| Rotations ending soon | ✔ | ✔ | ✔ | — | — |
+| Students without tutors | ✔ | ✔ | ✔ | — | — |
+| Tutors with verification backlog | ✔ | ✔ | ✔ | — | — |
+| Open high/critical incidents | ✔ | ✔ | ✔ | — | — |
+| Documents awaiting review | ✔ | ✔ | ✔ | — | — |
+| Missing/inconsistent grade components | ✔ | ✔ | — | — | — |
+| Cross-sheet grade inconsistencies | ✔ | ✔ | — | — | — |
+| Summary of one student | ✔ | ✔ | ✔ (own sede) | — | — |
+| Summary by sede | ✔ | ✔ | ✔ (own sede) | — | — |
+
+- **Students and Tutors cannot reach `/assistant` at all** — the route guard
+  (`require_management`) returns 403 before any question is even parsed, and
+  the denial is audited (`authorization_denied`).
+- The two grade-related questions mirror the existing `/grades` boundary:
+  Sede Coordinators never see the raw grade matrix, so the assistant refuses
+  those two questions for that role even if the question text matches.
+- A Sede Coordinator's answers are always filtered to their own sede's
+  records — asking about "all sedes" or another sede's student by name does
+  not change what the deterministic query returns, because the query is
+  scoped by role/sede first and the question text is only ever used to pick
+  *which* query to run, never to parameter­ize its scope.
+- Confidential incidents are shown as `(incidencia confidencial)` to any
+  non-global viewer; confidential documents are excluded from the assistant's
+  answers entirely.
+- The assistant never approves, grades, closes an incident, or sends a
+  document — it has no write endpoint of any kind.

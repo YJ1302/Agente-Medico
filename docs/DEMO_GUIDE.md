@@ -235,3 +235,36 @@ Walkthrough (Admin or University):
    from 0). Import grade components via `/imports/new?profile=grade_components`
    (choose the scheme first).
 4. Confirm RBAC: a Student gets **403** on `/imports`; a Tutor cannot import master data.
+
+---
+
+## Phase 3A demo — AI Coordinator Assistant
+
+`AI_ASSISTANT_ENABLED=false` by default in the demo `.env`, so the assistant
+answers every question with its deterministic fallback narrative (no external
+API call, no key required). Set `AI_ASSISTANT_ENABLED=true` and
+`ANTHROPIC_API_KEY=<key>` beforehand only if you want to show the LLM-phrased
+summary instead of the fallback wording — the underlying data and scope are
+identical either way.
+
+Walkthrough (Admin, University, or Sede Coordinator):
+1. **Asistente IA** (`/assistant`) → the sidebar lists every question
+   available to the logged-in role.
+2. Ask "¿Qué internos no tienen tutor asignado?" → the answer card shows the
+   title, a one-line narrative, the source/count line, and the detail table.
+3. Ask something unrelated (e.g. "cuéntame un chiste") → the assistant states
+   it does not recognize the question and lists the supported ones — it never
+   guesses.
+4. **Sede Coordinator** (`sede@`) → ask about grade components — the
+   assistant states this consultation is not permitted for the role (same
+   boundary as `/grades`). Ask about students without a tutor — only their
+   own sede's students appear, even when the question is phrased to ask about
+   "all sedes."
+5. **Student / Tutor** → `/assistant` returns **403** — the module is
+   coordinator-only.
+6. `/audit` (Admin) → confirm `ai_assistant_query` and `ai_assistant_response`
+   entries for every question asked above.
+
+The assistant never approves, grades, closes an incident, or sends a
+document, and it never computes a final grade while
+`GradeScheme.weights_confirmed` is false.

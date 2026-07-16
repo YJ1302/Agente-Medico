@@ -182,3 +182,62 @@ Extending: add an import profile by subclassing `ImportProfile` in
 implement `resolve/find_existing/validate/apply`) and register it in
 `_MASTER_PROFILES` (or via `get_profile` for domain profiles). Reuse an existing
 service `_validate` in `validate()` so business rules stay authoritative.
+
+---
+
+## Phase 3A/3B — AI Coordinator Assistant (Anthropic + Gemini)
+
+New runtime dependencies (already in `requirements.txt`, both optional at
+runtime and lazy-imported): `anthropic`, `google-genai`. You only need to
+`pip install` whichever provider you intend to use — the assistant's
+deterministic fallback works with neither installed.
+
+No new migration; no new demo data (the assistant reads existing tables only).
+
+Config (`app/config.py` / `.env`):
+
+| Setting | Default | Notes |
+|---------|---------|-------|
+| `AI_ASSISTANT_ENABLED` | `false` | Master switch. Deterministic fallback always works regardless. |
+| `AI_ASSISTANT_PROVIDER` | `anthropic` | `anthropic` or `gemini`. |
+| `AI_ASSISTANT_MODEL` | `claude-3-5-haiku-20241022` | Must be a valid model id for whichever provider is selected (e.g. `gemini-2.0-flash` for Gemini). |
+| `ANTHROPIC_API_KEY` | *(blank)* | Only required when `AI_ASSISTANT_PROVIDER=anthropic`. |
+| `GEMINI_API_KEY` | *(blank)* | Only required when `AI_ASSISTANT_PROVIDER=gemini`. |
+| `AI_ASSISTANT_TIMEOUT_SECONDS` | `8` | Enforced uniformly for both providers via a thread-pool timeout. |
+| `AI_ASSISTANT_RATE_LIMIT_PER_MINUTE` | `10` | Per logged-in user, in-process. |
+
+### Switching provider (e.g. to activate Gemini)
+
+1. `pip install google-genai` (add it to your environment if not already
+   present from `requirements.txt`).
+2. In `.env`, set:
+   ```
+   AI_ASSISTANT_ENABLED=true
+   AI_ASSISTANT_PROVIDER=gemini
+   AI_ASSISTANT_MODEL=gemini-2.0-flash
+   GEMINI_API_KEY=<your real key>
+   ```
+3. Restart the app. No code change, no migration, no template change —
+   `AssistantLLMClient` picks the provider at call time from `settings`.
+4. To go back to Anthropic, set `AI_ASSISTANT_PROVIDER=anthropic` and ensure
+   `ANTHROPIC_API_KEY` is set; `GEMINI_API_KEY` can stay populated or blank,
+   it is simply unused while the provider is `anthropic`.
+
+### Extending with a third provider
+
+Add a `_call_<provider>(self, question, payload)` method to
+`AssistantLLMClient` (mirror `_call_anthropic`/`_call_gemini`: lazy-import the
+SDK, build the request from the shared `_user_content()` + `SYSTEM_PROMPT`,
+return `str | None`), register it in the `call` dict inside `summarize()`,
+and extend `available()`'s provider branch. No other file needs to change —
+the query layer, RBAC, redaction, rate limiting and audit are provider-agnostic.
+
+Key modules: `app/services/ai_assistant_service.py`,
+`app/agents/assistant_llm_client.py`, `app/services/rate_limiter.py`,
+`app/routes/assistant_routes.py`.
+
+Tests: `pytest tests/test_ai_assistant.py` — note `tests/conftest.py` forces
+`AI_ASSISTANT_ENABLED=false` and blanks both API keys before the app is
+imported, regardless of your local `.env`, so the suite never makes a real
+external API call; tests that need "enabled" behavior use `monkeypatch` on
+the `settings` object explicitly.

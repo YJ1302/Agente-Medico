@@ -92,6 +92,12 @@ NAV_SECTIONS: list[NavSection] = [
     NavSection(
         "AUTOMATIZACIÓN INTELIGENTE",
         [
+            NavItem(
+                "Asistente IA",
+                "/assistant",
+                "stars",
+                roles={ROLE_ADMIN, ROLE_UNIVERSITY_COORDINATOR, ROLE_SEDE_COORDINATOR},
+            ),
             NavItem("Centro de Agentes", "/agents", "robot"),
             NavItem("Alertas", "/alerts", "bell"),
             NavItem(

@@ -112,6 +112,71 @@ Uploads are **not** implemented yet. The reserved design (for Part 2):
 - When real AI is added, prompts must exclude prohibited patient data and
   responses must be treated as recommendations, not decisions.
 
+### Phase 3A/3B — AI Coordinator Assistant (dual provider)
+
+The assistant (`app/services/ai_assistant_service.py`,
+`app/agents/assistant_llm_client.py`) is the first feature in this codebase to
+call an external AI provider. It supports **two interchangeable providers**,
+selected by `AI_ASSISTANT_PROVIDER` (`anthropic`, the default, or `gemini`) —
+both share the same query layer, system prompt, RBAC, redaction, rate
+limiting, timeout and audit behavior described below; only the outbound
+transport call differs. Its safety posture:
+
+- **Deterministic queries first.** Every one of the 11 supported questions is
+  answered by a plain, scoped repository query (see
+  `AI_ASSISTANT_ARCHITECTURE.md`). The LLM is invoked, if at all, only
+  afterwards, to phrase the already-computed result — never to decide what
+  data to fetch or to fetch it itself.
+- **The full database is never sent to the model.** Only the small
+  structured payload (title, headers, up to 20 rows, count) already produced
+  by the scoped query is included in the prompt.
+- **Prompt-injection resistance.** The question and any embedded instructions
+  are always sent as plain user content, never merged into the system role.
+  The system prompt explicitly instructs the model to treat any instruction
+  found inside the question or the data as content to describe, not as a
+  command, and to never compute or suggest a final grade.
+- **Scope enforced twice.** The route guard (`require_management`) blocks
+  Students and Tutors outright (403, audited). Inside the service,
+  `can_ask()` additionally restricts the two grade-related questions to
+  Admin/University Coordinator, matching the existing `/grades` boundary.
+- **Redaction before assembly.** Confidential incidents are shown only as
+  `(incidencia confidencial)` unless the caller is a global viewer;
+  confidential documents are excluded entirely from the assistant's answers.
+  This redaction happens before the data is ever put in the on-screen
+  answer, the audit log, or the LLM payload.
+- **No grade invention.** The assistant never computes or estimates a final
+  grade; `grade_components_missing` only reports the same
+  weight/score-is-null signals `GradeService.final_grade_note()` already
+  surfaces elsewhere.
+- **No mutation capability.** There is no write endpoint in this module —
+  `GET /assistant` and `POST /assistant/ask` only ever return an answer.
+  Approving evaluations, closing incidents, sending documents or confirming
+  grade weights remain human-only actions in their own modules.
+- **Graceful degradation, either provider.** If `AI_ASSISTANT_ENABLED` is
+  false, the selected provider's API key is unset, its SDK package
+  (`anthropic` or `google-genai`) is not installed, the call exceeds
+  `AI_ASSISTANT_TIMEOUT_SECONDS` (enforced uniformly via a thread-pool
+  timeout, independent of what the provider's own SDK supports), the key is
+  invalid, the account's quota is exhausted, or the provider errors for any
+  other reason, `AssistantLLMClient.summarize()` returns `None` — never
+  raises — and the service falls back to a deterministic templated
+  narrative. The assistant always answers, on either provider, online or
+  offline.
+- **Rate limiting.** An in-process sliding-window limiter
+  (`AI_ASSISTANT_RATE_LIMIT_PER_MINUTE`, default 10/min per user) rejects
+  excess requests before any query runs; the rejection itself is audited
+  (`ai_assistant_rate_limited`).
+- **Audit.** Every call writes `ai_assistant_query` (intent, truncated
+  question, result count) before any LLM call and `ai_assistant_response`
+  (intent, whether the LLM summary was used, result count) after. Full row
+  data and confidential content are never written to the audit log.
+- **Secrets.** `ANTHROPIC_API_KEY` and `GEMINI_API_KEY` are read only from
+  the environment (`app/config.py::Settings`), are never logged, audited, or
+  rendered in any template, and are absent from `.env.example` (blank
+  placeholders only). Only the key matching the selected
+  `AI_ASSISTANT_PROVIDER` needs to be set — the unused provider's key may
+  remain blank.
+
 ## 10. Logging hygiene
 
 - Use the shared logger; never log passwords, tokens or session contents.

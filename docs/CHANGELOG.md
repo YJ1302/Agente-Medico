@@ -3,6 +3,109 @@
 All notable changes to this project are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601.
 
+## [0.3.0-alpha.2] — Phase 3B · AI Coordinator Assistant — Gemini provider
+
+**Second AI provider (Google Gemini), preserving Anthropic** (complete, verified).
+
+### Added
+- `app/agents/assistant_llm_client.py` — `AssistantLLMClient` now dispatches to
+  `_call_anthropic` or `_call_gemini` based on `AI_ASSISTANT_PROVIDER`
+  (`anthropic` default, or `gemini`). Both send the identical shared
+  `_user_content(question, payload)` + `SYSTEM_PROMPT`; only the transport
+  differs. Gemini uses the official `google-genai` SDK (`genai.Client(...)
+  .models.generate_content(...)`), lazy-imported exactly like `anthropic`.
+- A uniform, provider-independent timeout: every provider call now runs
+  inside a single-worker `ThreadPoolExecutor` bounded by
+  `AI_ASSISTANT_TIMEOUT_SECONDS`, so a slow/hanging provider can never block
+  a request regardless of that SDK's own timeout support.
+- `app/config.py` / `.env.example` — `GEMINI_API_KEY` (secret, env-only,
+  blank by default). `AI_ASSISTANT_PROVIDER` and `AI_ASSISTANT_MODEL` are
+  unchanged in shape but now documented as provider-dependent.
+- `requirements.txt` — `google-genai==1.2.0` (optional at runtime, lazy
+  imported; the deterministic fallback works with neither `anthropic` nor
+  `google-genai` installed).
+- `tests/conftest.py` — forces `AI_ASSISTANT_ENABLED=false` and blanks both
+  provider API keys in the environment before the app is imported, so the
+  test suite never depends on (or is broken by) a developer's local `.env`
+  and never makes a real external API call.
+
+### Tests
+6 new tests in `tests/test_ai_assistant.py`: Gemini summary used when
+available (mocked), Gemini failure falls back gracefully (mocked), Gemini
+unavailable without an API key, Gemini SDK-not-installed fails closed,
+unknown-provider value falls back gracefully, and a slow provider call
+exceeding the timeout falls back without hanging. Full suite: **234 passed**
+(was 228).
+
+### Security
+- Preserves every Phase 3A control (deterministic-first queries, RBAC, sede
+  scope, confidential redaction, rate limiting, audit, no grade invention, no
+  write endpoints) unchanged — only the LLM transport gained a second option.
+- `GEMINI_API_KEY` is read only from the environment, never logged, audited,
+  or rendered, and is absent from `.env.example` (blank placeholder only).
+- Invalid key, quota exhaustion, timeout, an uninstalled SDK, and any other
+  provider error are all handled the same way for Gemini as for Anthropic:
+  `summarize()` returns `None` and the deterministic fallback narrative is
+  used — never a crash, never a partial/garbled answer.
+- See `docs/AI_ASSISTANT_ARCHITECTURE.md` §6, `SECURITY_AND_PRIVACY_RULES.md`
+  §9, and `DEVELOPMENT_GUIDE.md` "Phase 3A/3B" for the full provider-switch
+  instructions.
+
+---
+
+## [0.3.0-alpha.1] — Phase 3A · AI Coordinator Assistant
+
+**Safe natural-language assistant for authorized coordinators** (complete, verified).
+
+### Added
+- `app/services/ai_assistant_service.py` — `AIAssistantService`: deterministic
+  intent matching (keyword/substring, no LLM involved in routing), 11
+  scoped query builders mirroring `ReportService`'s role/sede scope pattern,
+  rate limiting, and audit-wrapped `answer()` orchestration.
+- `app/agents/assistant_llm_client.py` — `AssistantLLMClient`: optional
+  Anthropic-backed summarization of an already-computed result only; lazy
+  `anthropic` import, per-call timeout, and fail-safe `None` on any error so
+  the assistant always has a deterministic fallback narrative.
+- `app/services/rate_limiter.py` — in-process sliding-window rate limiter.
+- `app/routes/assistant_routes.py` + `app/templates/pages/assistant.html` —
+  `GET /assistant`, `POST /assistant/ask`; Admin, University Coordinator and
+  Sede Coordinator only (`require_management`); new sidebar entry.
+- New audit actions: `ai_assistant_query`, `ai_assistant_response`,
+  `ai_assistant_rate_limited`.
+- New settings (`app/config.py`, `.env.example`): `AI_ASSISTANT_ENABLED`,
+  `AI_ASSISTANT_PROVIDER`, `AI_ASSISTANT_MODEL`, `ANTHROPIC_API_KEY`,
+  `AI_ASSISTANT_TIMEOUT_SECONDS`, `AI_ASSISTANT_RATE_LIMIT_PER_MINUTE`,
+  `AI_ASSISTANT_ROTATION_ENDING_DAYS`, `AI_ASSISTANT_LOW_ACTIVITY_RATIO`.
+  Disabled by default; the assistant works fully offline either way.
+
+### Supported questions (11)
+Students with pending evaluations; students with low activity progress;
+rotations ending soon; students without tutors; tutors with a verification
+backlog; open high/critical incidents; documents awaiting review; missing or
+inconsistent grade components (Admin/University only); cross-sheet grade
+inconsistencies (Admin/University only); summary of one student's internship;
+summary by sede.
+
+### Security
+- Deterministic queries always run first; the LLM, if enabled, only phrases
+  the already-scoped, already-redacted result — it never receives database
+  access or another user's data.
+- Confidential incidents are redacted (`(incidencia confidencial)`) and
+  confidential documents are excluded before the answer is ever assembled,
+  logged, or sent to the model.
+- The assistant never computes a final grade; grade-related answers reuse
+  the existing "weights pending confirmation" gate.
+- No write endpoints; the assistant only ever answers.
+- See `docs/AI_ASSISTANT_ARCHITECTURE.md`, `SECURITY_AND_PRIVACY_RULES.md` §9,
+  `USER_ROLES_AND_PERMISSIONS.md` "Phase 3A", and `DECISIONS_LOG.md` D-030/D-031.
+
+17 new focused tests (`tests/test_ai_assistant.py`) covering RBAC, sede scope,
+prompt-injection resistance, data-leakage prevention, LLM-unavailable
+fallback, LLM-failure fallback, rate limiting and audit logging. Full suite:
+**228 passed** (was 211).
+
+---
+
 ## [0.2.0-alpha.7.1] — Phase 1 · Part 2 · Batch 2F patch
 
 **Real-workbook compatibility audit** (complete, verified — no rebuild).

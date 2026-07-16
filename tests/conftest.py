@@ -20,6 +20,13 @@ _TEST_DB = Path(_TMP_DIR) / "test.db"
 os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DB.as_posix()}"
 os.environ["DEMO_MODE"] = "true"
 os.environ["SECRET_KEY"] = "test-secret-key-not-for-production"
+# Force the AI Coordinator Assistant off regardless of a developer's local
+# .env (which may carry a real, working provider key) — tests must never make
+# real external API calls. Individual tests opt into "enabled" behavior via
+# monkeypatch on the `settings` object, never via ambient environment state.
+os.environ["AI_ASSISTANT_ENABLED"] = "false"
+os.environ["ANTHROPIC_API_KEY"] = ""
+os.environ["GEMINI_API_KEY"] = ""
 
 from fastapi.testclient import TestClient  # noqa: E402
 
