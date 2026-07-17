@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.authorization import ensure, require_admin_or_university
 from app.csrf import csrf_protect
 from app.database import get_db
-from app.dependencies import Identity, require_identity
+from app.dependencies import Identity
 from app.models.base import GRADE_CATEGORIES
 from app.services.audit_service import client_ip
 from app.services.grade_service import GradeService
@@ -71,7 +71,7 @@ def grade_scheme_detail(scheme_id: int, request: Request,
 
 @router.post("/grades/component/{sgc_id}/approve")
 async def approve_component(sgc_id: int, request: Request,
-                            identity: Identity = Depends(require_identity),
+                            identity: Identity = Depends(require_admin_or_university),
                             db: Session = Depends(get_db), _: None = Depends(csrf_protect)):
     svc = GradeService(db, identity)
     sgc = svc.approve_component(sgc_id, ip=client_ip(request))

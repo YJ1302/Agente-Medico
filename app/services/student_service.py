@@ -82,10 +82,13 @@ class StudentService:
 
     # -- detail -----------------------------------------------------------
     def get_for_view(self, student_id: int) -> Student:
+        # Same generic denial message either way — "not found" vs "out of
+        # scope" must not be distinguishable to the caller (only the audit
+        # `reason` differs, and that is never rendered to the user).
         student = self.repos.students.get_full(student_id)
-        ensure(student is not None, "Interno no encontrado.", "not_found")
+        ensure(student is not None, "No tiene permiso para ver este interno.", "not_found")
         ensure(can_view_student(self.identity, student, self.repos),
-               "No puede ver este interno.", "student_scope_denied")
+               "No tiene permiso para ver este interno.", "student_scope_denied")
         return student
 
     def build_detail(self, student_id: int) -> dict:

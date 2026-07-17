@@ -199,7 +199,12 @@ class StudentActivityService:
         return tutors[0] if tutors else None
 
     def can_review(self, entry: StudentActivity) -> bool:
-        if is_admin(self.identity):
+        # Admin + University Coordinator both verify/reject/bulk-verify per
+        # docs/USER_ROLES_AND_PERMISSIONS.md; is_global_viewer() covers both
+        # (is_admin() alone under-permissioned University Coordinator here,
+        # even though they already see the verify inbox at
+        # activity_routes.py's ROLE_UNIVERSITY_COORDINATOR-inclusive guard).
+        if is_global_viewer(self.identity):
             return True
         if self.identity.role_code != ROLE_TUTOR:
             return False

@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.authorization import Forbidden, require_management
 from app.csrf import csrf_protect
 from app.database import get_db
-from app.dependencies import Identity, require_identity
+from app.dependencies import Identity
 from app.services.audit_service import client_ip
 from app.services.staff_service import CoordinatorService
 from app.services.validators import ValidationError
@@ -80,7 +80,7 @@ async def create_coordinator(request: Request, identity: Identity = Depends(requ
 
 @router.get("/coordinators/{coord_id}")
 def coordinator_detail(coord_id: int, request: Request,
-                       identity: Identity = Depends(require_identity),
+                       identity: Identity = Depends(require_management),
                        db: Session = Depends(get_db)):
     service = CoordinatorService(db, identity)
     data = service.build_detail(coord_id)

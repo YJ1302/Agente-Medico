@@ -39,8 +39,9 @@ def set_lang(request: Request, lang: str = "es", next: str = "/dashboard"):
 @router.get("/api/notifications")
 def notifications(request: Request, identity: Identity = Depends(require_identity),
                   db: Session = Depends(get_db)):
-    """JSON feed for the top-bar notification dropdown."""
-    alerts = AlertService(db).open_alerts()
+    """JSON feed for the top-bar notification dropdown (scoped to the caller —
+    never another role's/sede's/student's alerts, see PERMISSIONS_MATRIX.md)."""
+    alerts = AlertService(db).scoped_open_alerts(identity)
     return {
         "count": len(alerts),
         "items": [

@@ -24,7 +24,7 @@
   {% for ag in agents %}
   <div class="card">
     <div class="card-head">
-      <h3><i class="bi bi-robot"></i> {{ ag.name }}</h3>
+      <h3><i class="bi bi-robot"></i> {{ ag.display_name }}</h3>
       <form method="post" action="/agents/{{ ag.name }}/run">
         <button class="btn btn-outline btn-sm" type="submit"><i class="bi bi-play"></i> Ejecutar</button>
       </form>
@@ -44,7 +44,7 @@
     <div class="agent-run">
       <div class="ar-icon"><i class="bi bi-cpu"></i></div>
       <div style="flex:1">
-        <div class="ar-name">{{ r.agent_name }} · <span style="font-weight:400">{{ r.task }}</span>
+        <div class="ar-name">{{ agent_display_names.get(r.agent_name, r.agent_name) }} · <span style="font-weight:400">{{ r.task }}</span>
           <span class="chip chip-{{ 'success' if r.status in ['success','no_findings'] else 'warning' }}">{{ r.status }}</span>
           {% if r.requires_human_approval %}<span class="chip chip-warning"><i class="bi bi-person-check"></i> Requiere aprobación</span>{% endif %}
         </div>

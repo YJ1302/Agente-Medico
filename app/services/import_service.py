@@ -386,8 +386,9 @@ class ImportService:
 
     def get_for_view(self, batch_id: int) -> ImportBatch:
         batch = self.repos.import_batches.get_full(batch_id)
-        ensure(batch is not None, "Importación no encontrada.", "not_found")
-        ensure(self.can_view_batch(batch), "No autorizado.", "import_scope_denied")
+        ensure(batch is not None, "No tiene permiso para ver esta importación.", "not_found")
+        ensure(self.can_view_batch(batch),
+              "No tiene permiso para ver esta importación.", "import_scope_denied")
         return batch
 
     def list_batches(self, profile: str | None = None) -> list[ImportBatch]:

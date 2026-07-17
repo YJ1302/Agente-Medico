@@ -28,6 +28,17 @@ from app.repositories.repositories import RepositoryBundle
 
 logger = get_logger(__name__)
 
+# Professional Spanish display names for the UI. Internal identifiers
+# (``agent.name``, used for run URLs, persistence and audit) are preserved
+# unchanged — only what a coordinator reads on screen is translated.
+AGENT_DISPLAY_NAMES: dict[str, str] = {
+    "monitoring_agent": "Agente de Monitoreo Operativo",
+    "planning_agent": "Agente de Planificación de Rotaciones",
+    "evaluation_agent": "Agente de Revisión de Evaluaciones",
+    "document_agent": "Agente de Triage de Documentos",
+    "incident_monitoring_agent": "Agente de Monitoreo de Incidencias",
+}
+
 
 class AgentOrchestrator:
     """Registers agents and dispatches tasks to them."""

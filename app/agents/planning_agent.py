@@ -18,8 +18,8 @@ from app.repositories.repositories import RepositoryBundle
 class PlanningAgent(BaseAgent):
     name = "planning_agent"
     description = (
-        "Analyzes rotation coverage across periods and rotation types and "
-        "proposes planning adjustments for human approval."
+        "Analiza la cobertura de rotaciones por periodo y tipo, y propone "
+        "ajustes de planificación sujetos a aprobación humana."
     )
 
     def run(self, context: dict[str, Any]) -> AgentResponse:

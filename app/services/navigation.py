@@ -98,7 +98,17 @@ NAV_SECTIONS: list[NavSection] = [
                 "stars",
                 roles={ROLE_ADMIN, ROLE_UNIVERSITY_COORDINATOR, ROLE_SEDE_COORDINATOR},
             ),
-            NavItem("Centro de Agentes", "/agents", "robot"),
+            NavItem(
+                "Centro de Agentes",
+                "/agents",
+                "robot",
+                # Admin/University only: none of the registered agents filter
+                # their findings by sede, so a Sede Coordinator cannot be
+                # given access without leaking other sedes' data (see
+                # app/routes/agent_routes.py); Tutor/Student have no
+                # legitimate use for this module.
+                roles={ROLE_ADMIN, ROLE_UNIVERSITY_COORDINATOR},
+            ),
             NavItem("Alertas", "/alerts", "bell"),
             NavItem(
                 "Ejecuciones de Agentes",

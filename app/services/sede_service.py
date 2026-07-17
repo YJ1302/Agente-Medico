@@ -69,8 +69,9 @@ class SedeService:
 
     def get_for_view(self, sede_id: int) -> Sede:
         sede = self.repos.sedes.get_full(sede_id)
-        ensure(sede is not None and not sede.is_deleted, "Sede no encontrada.", "not_found")
-        ensure(self.can_view(sede), "No puede ver esta sede.", "sede_scope_denied")
+        ensure(sede is not None and not sede.is_deleted,
+              "No tiene permiso para ver esta sede.", "not_found")
+        ensure(self.can_view(sede), "No tiene permiso para ver esta sede.", "sede_scope_denied")
         return sede
 
     def build_detail(self, sede_id: int) -> dict:

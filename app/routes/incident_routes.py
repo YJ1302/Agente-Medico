@@ -40,13 +40,21 @@ def list_incidents(request: Request, identity: Identity = Depends(require_identi
     base_qs = "".join(f"{k}={v}&" for k, v in
                       (("q", q), ("status", status), ("severity", severity),
                        ("incident_type", incident_type)) if v)
+    # Open-by-severity badge counts from the caller's own scoped, unfiltered
+    # incident list — never a global count, which would leak volume outside
+    # the caller's scope (sede/student/tutor/confidentiality).
+    from app.services.incident_service import TERMINAL
+    counts: dict[str, int] = {}
+    for inc in svc.list_incidents():
+        if inc.status not in TERMINAL:
+            counts[inc.severity] = counts.get(inc.severity, 0) + 1
     return render(request, "pages/incidents_list.html", identity=identity,
                   page_title="Incidencias",
                   page_subtitle="Situaciones que afectan el desarrollo del internado.",
                   page_icon="exclamation-triangle", page=paged, q=q, status=status,
                   severity=severity, incident_type=incident_type,
                   incident_types=INCIDENT_TYPES, base_qs=base_qs, can_create=svc.can_create(),
-                  counts=svc.repos.incidents.count_open_by_severity())
+                  counts=counts)
 
 
 @router.get("/incidents/new")

@@ -103,8 +103,9 @@ class EvaluationService:
 
     def get_for_view(self, evaluation_id: int) -> Evaluation:
         ev = self.repos.evaluations.get_full(evaluation_id)
-        ensure(ev is not None, "Evaluación no encontrada.", "not_found")
-        ensure(self.can_view(ev), "No puede ver esta evaluación.", "evaluation_scope_denied")
+        ensure(ev is not None, "No tiene permiso para ver esta evaluación.", "not_found")
+        ensure(self.can_view(ev),
+              "No tiene permiso para ver esta evaluación.", "evaluation_scope_denied")
         return ev
 
     def build_detail(self, evaluation_id: int) -> dict:

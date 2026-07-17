@@ -18,8 +18,8 @@ from app.repositories.repositories import RepositoryBundle
 class EvaluationAgent(BaseAgent):
     name = "evaluation_agent"
     description = (
-        "Reviews rotation evaluations, flags pending submissions and prepares "
-        "consolidation summaries for human approval."
+        "Revisa las evaluaciones de rotación, señala los envíos pendientes y "
+        "prepara resúmenes de consolidación para aprobación humana."
     )
 
     def run(self, context: dict[str, Any]) -> AgentResponse:

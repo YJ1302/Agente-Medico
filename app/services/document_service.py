@@ -123,6 +123,11 @@ class DocumentService:
             return False
         if is_global_viewer(self.identity):
             return True
+        # Same confidentiality gate as can_view(): a Sede Coordinator's own-
+        # sede scope never overrides confidentiality — only the creator (or a
+        # global viewer, above) may touch a confidential document.
+        if doc.visibility == VisibilityLevel.CONFIDENTIAL.value:
+            return doc.created_by_user_id == self.identity.user_id
         if self.identity.role_code == ROLE_SEDE_COORDINATOR:
             return doc.sede_id in self._own_sede_ids() or doc.created_by_user_id == self.identity.user_id
         return doc.created_by_user_id == self.identity.user_id
@@ -137,6 +142,10 @@ class DocumentService:
             return False
         if role in (ROLE_ADMIN, ROLE_UNIVERSITY_COORDINATOR):
             return True
+        # Same confidentiality gate as can_view()/can_edit(): a Sede
+        # Coordinator's own-sede scope never overrides confidentiality.
+        if doc.visibility == VisibilityLevel.CONFIDENTIAL.value:
+            return False
         if role == ROLE_SEDE_COORDINATOR:
             return doc.sede_id in self._own_sede_ids()
         return False
@@ -174,8 +183,9 @@ class DocumentService:
 
     def get_for_view(self, document_id: int) -> DocumentRecord:
         doc = self.repos.documents.get_full(document_id)
-        ensure(doc is not None, "Documento no encontrado.", "not_found")
-        ensure(self.can_view(doc), "No puede ver este documento.", "document_scope_denied")
+        ensure(doc is not None, "No tiene permiso para ver este documento.", "not_found")
+        ensure(self.can_view(doc),
+              "No tiene permiso para ver este documento.", "document_scope_denied")
         return doc
 
     def build_detail(self, document_id: int) -> dict:
@@ -282,7 +292,13 @@ class DocumentService:
         }
 
     def _resolve_links(self, data: dict) -> dict:
-        """Validate optional student/sede/assignment links against scope."""
+        """Validate optional student/sede/assignment links against scope.
+
+        Values arrive as raw POST fields — the create/edit forms only ever
+        *display* a scoped dropdown, so the server must independently reject
+        a student/sede outside the actor's own scope, not just trust the
+        submitted id (the form is not the security boundary).
+        """
         out: dict = {"student_id": None, "sede_id": None, "assignment_id": None}
         student_id = (data.get("student_id") or "").strip()
         sede_id = (data.get("sede_id") or "").strip()
@@ -299,6 +315,16 @@ class DocumentService:
             out["sede_id"] = int(sede_id)
         if assignment_id:
             out["assignment_id"] = int(assignment_id)
+        if self.identity.role_code == ROLE_SEDE_COORDINATOR and not is_global_viewer(self.identity):
+            own_sede_ids = self._own_sede_ids()
+            if out["sede_id"] is not None:
+                ensure(out["sede_id"] in own_sede_ids,
+                      "No puede vincular este documento a otra sede.", "document_sede_scope_denied")
+            if out["student_id"] is not None:
+                st = self.repos.students.get(out["student_id"])
+                ensure(st is not None and st.sede_id in own_sede_ids,
+                      "No puede vincular este documento a un interno de otra sede.",
+                      "document_student_scope_denied")
         return out
 
     # -- create / update ---------------------------------------------------
@@ -332,6 +358,8 @@ class DocumentService:
         ensure(doc is not None, "Documento no encontrado.", "not_found")
         ensure(self.can_edit(doc), "No puede editar este documento.", "edit_document_denied")
         cleaned = self._clean(data)
+        ensure(self.can_create_type(cleaned["doc_type"]),
+               "No tiene permiso para este tipo de documento.", "edit_document_type_denied")
         # Students cannot edit internal notes.
         if self.is_student():
             cleaned.pop("internal_notes", None)

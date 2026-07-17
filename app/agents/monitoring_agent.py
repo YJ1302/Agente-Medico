@@ -19,8 +19,9 @@ from app.repositories.repositories import RepositoryBundle
 class MonitoringAgent(BaseAgent):
     name = "monitoring_agent"
     description = (
-        "Runs deterministic business rules to detect rotations ending soon, "
-        "missing tutors, pending evaluations and incomplete profiles."
+        "Ejecuta reglas de negocio deterministas para detectar rotaciones por "
+        "finalizar, tutores faltantes, evaluaciones pendientes y perfiles "
+        "incompletos."
     )
 
     def run(self, context: dict[str, Any]) -> AgentResponse:

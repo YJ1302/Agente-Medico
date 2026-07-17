@@ -51,7 +51,9 @@
         <i class="bi bi-envelope"></i>{{ identity.email }}
       </div>
       <a href="/profile"><i class="bi bi-person-circle"></i>{{ t('Mi perfil') }}</a>
+      {% if identity.role_code == 'admin' %}
       <a href="/settings"><i class="bi bi-gear"></i>{{ t('Configuración') }}</a>
+      {% endif %}
       <a href="/logout" style="color:var(--danger)"><i class="bi bi-box-arrow-right"></i>{{ t('Cerrar sesión') }}</a>
     </div>
   </div>

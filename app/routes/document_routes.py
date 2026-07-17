@@ -43,12 +43,17 @@ def list_documents(request: Request, identity: Identity = Depends(require_identi
     paged = paginate(rows, page, PER_PAGE)
     base_qs = "".join(f"{k}={v}&" for k, v in
                       (("q", q), ("status", status), ("doc_type", doc_type)) if v)
+    # Status badge counts from the already role/sede-scoped `rows` — never a
+    # global count, which would leak volume outside the caller's scope.
+    counts: dict[str, int] = {}
+    for d in rows:
+        counts[d.status] = counts.get(d.status, 0) + 1
     return render(request, "pages/documents_list.html", identity=identity,
                   page_title="Documentos",
                   page_subtitle="Comunicaciones formales con estados trazables.",
                   page_icon="file-earmark-text", page=paged, q=q, status=status,
                   doc_type=doc_type, doc_types=DOCUMENT_TYPES, base_qs=base_qs,
-                  counts=svc.repos.documents.count_by_status())
+                  counts=counts)
 
 
 @router.get("/documents/new")

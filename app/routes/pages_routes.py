@@ -42,18 +42,19 @@ def _page(request, identity, title, subtitle, icon, **ctx):
 @router.get("/alerts")
 def alerts(request: Request, identity: Identity = Depends(require_identity),
            db: Session = Depends(get_db)):
-    AlertService(db).refresh_from_rules()
-    repos = RepositoryBundle(db)
+    svc = AlertService(db)
+    svc.refresh_from_rules()
     return _page(request, identity, "Alertas",
                  "Detección automática de riesgos operativos (requiere decisión humana).",
                  "bell", template="pages/alerts.html",
-                 alerts=repos.alerts.open_alerts())
+                 alerts=svc.scoped_open_alerts(identity))
 
 
 @router.get("/agent-executions")
 def agent_executions(request: Request,
                      identity: Identity = Depends(require_admin_or_university),
                      db: Session = Depends(get_db)):
+    from app.agents.orchestrator import AGENT_DISPLAY_NAMES
     repos = RepositoryBundle(db)
     runs = repos.agent_executions.recent(limit=50)
     parsed = []
@@ -65,7 +66,8 @@ def agent_executions(request: Request,
         })
     return _page(request, identity, "Ejecuciones de Agentes",
                  "Historial auditable de cada ejecución de agente.",
-                 "cpu", template="pages/agent_executions.html", runs=parsed)
+                 "cpu", template="pages/agent_executions.html", runs=parsed,
+                 agent_display_names=AGENT_DISPLAY_NAMES)
 
 
 @router.get("/audit")

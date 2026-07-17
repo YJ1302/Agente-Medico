@@ -122,6 +122,12 @@ class IncidentService:
         role = self.identity.role_code
         if role in (ROLE_ADMIN, ROLE_UNIVERSITY_COORDINATOR):
             return True
+        # Same confidentiality gate as can_view(): a Sede Coordinator's own-
+        # sede scope never overrides confidentiality — only the responsible
+        # user, the reporter, or a global viewer (above) may manage it.
+        if inc.visibility == VisibilityLevel.CONFIDENTIAL.value:
+            return inc.responsible_user_id == self.identity.user_id \
+                or inc.reported_by_user_id == self.identity.user_id
         if role == ROLE_SEDE_COORDINATOR:
             return inc.sede_id in self._own_sede_ids()
         return False
@@ -147,8 +153,9 @@ class IncidentService:
 
     def get_for_view(self, incident_id: int) -> Incident:
         inc = self.repos.incidents.get_full(incident_id)
-        ensure(inc is not None, "Incidencia no encontrada.", "not_found")
-        ensure(self.can_view(inc), "No puede ver esta incidencia.", "incident_scope_denied")
+        ensure(inc is not None, "No tiene permiso para ver esta incidencia.", "not_found")
+        ensure(self.can_view(inc),
+              "No tiene permiso para ver esta incidencia.", "incident_scope_denied")
         return inc
 
     def build_detail(self, incident_id: int) -> dict:
@@ -238,6 +245,13 @@ class IncidentService:
         }
 
     def _resolve_links(self, data: dict) -> dict:
+        """Validate optional student/sede links against scope.
+
+        Values arrive as raw POST fields — the create/edit forms only ever
+        *display* a scoped dropdown, so the server must independently reject
+        a student/sede outside the actor's own scope (the form is not the
+        security boundary).
+        """
         out = {"student_id": None, "sede_id": None}
         student_id = (data.get("student_id") or "").strip()
         sede_id = (data.get("sede_id") or "").strip()
@@ -248,6 +262,16 @@ class IncidentService:
                 out["sede_id"] = st.sede_id
         if sede_id:
             out["sede_id"] = int(sede_id)
+        if self.identity.role_code == ROLE_SEDE_COORDINATOR and not is_global_viewer(self.identity):
+            own_sede_ids = self._own_sede_ids()
+            if out["sede_id"] is not None:
+                ensure(out["sede_id"] in own_sede_ids,
+                      "No puede vincular esta incidencia a otra sede.", "incident_sede_scope_denied")
+            if out["student_id"] is not None:
+                st = self.repos.students.get(out["student_id"])
+                ensure(st is not None and st.sede_id in own_sede_ids,
+                      "No puede vincular esta incidencia a un interno de otra sede.",
+                      "incident_student_scope_denied")
         return out
 
     # -- create / update ---------------------------------------------------

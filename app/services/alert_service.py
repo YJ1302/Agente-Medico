@@ -14,10 +14,13 @@ from sqlalchemy.orm import Session
 
 from app.agents.base_agent import AgentFinding
 from app.agents.rule_engine import RuleEngine
+from app.authorization import is_global_viewer
 from app.logging_config import get_logger
 from app.models.base import AlertSeverity, AlertStatus
 from app.models.operations import Alert
+from app.models.user import ROLE_SEDE_COORDINATOR, ROLE_STUDENT, ROLE_TUTOR
 from app.repositories.repositories import RepositoryBundle
+from app.services.auth_service import Identity
 
 logger = get_logger(__name__)
 
@@ -38,6 +41,102 @@ class AlertService:
 
     def open_alerts(self) -> list[Alert]:
         return self.repos.alerts.open_alerts()
+
+    def scoped_open_alerts(self, identity: Identity) -> list[Alert]:
+        """Open alerts visible to ``identity`` (never a global, unscoped list
+        for a Sede Coordinator, Tutor or Student — see PERMISSIONS_MATRIX.md
+        "Alerts"). Alerts have no direct ``sede_id``/``student_id`` column;
+        they link back to the triggering record via ``related_entity_type`` +
+        ``related_entity_id``, so scope is resolved by following that link.
+        """
+        alerts = self.repos.alerts.open_alerts()
+        if is_global_viewer(identity):
+            return alerts
+
+        if identity.role_code == ROLE_SEDE_COORDINATOR:
+            sede_ids = {
+                c.sede_id for c in self.repos.sede_coordinators.active()
+                if c.user_id == identity.user_id and c.sede_id
+            }
+            return [a for a in alerts if self._alert_sede_id(a) in sede_ids]
+
+        if identity.role_code == ROLE_TUTOR:
+            tutor = self.repos.tutors.get_by_user(identity.user_id)
+            if not tutor:
+                return []
+            student_ids = {
+                a.student_id for a in self.repos.assignments.search(tutor_id=tutor.id)
+            }
+            return [
+                a for a in alerts
+                if self._alert_student_id(a) in student_ids
+                or self._alert_tutor_id(a) == tutor.id
+            ]
+
+        if identity.role_code == ROLE_STUDENT:
+            student = next(
+                (s for s in self.repos.students.search(active=None)
+                 if s.user_id == identity.user_id), None,
+            )
+            if not student:
+                return []
+            return [a for a in alerts if self._alert_student_id(a) == student.id]
+
+        return []
+
+    # -- alert entity resolution (for scoping only; never mutates) --------
+    def _alert_sede_id(self, alert: Alert) -> int | None:
+        t, i = alert.related_entity_type, alert.related_entity_id
+        if i is None:
+            return None
+        if t == "student":
+            s = self.repos.students.get(i)
+            return s.sede_id if s else None
+        if t == "rotation_assignment":
+            a = self.repos.assignments.get(i)
+            return a.sede_id if a else None
+        if t == "evaluation":
+            ev = self.repos.evaluations.get(i)
+            a = self.repos.assignments.get(ev.assignment_id) if ev and ev.assignment_id else None
+            return a.sede_id if a else None
+        if t == "student_activity":
+            e = self.repos.student_activities.get(i)
+            a = self.repos.assignments.get(e.assignment_id) if e and e.assignment_id else None
+            return a.sede_id if a else None
+        if t == "tutor":
+            tu = self.repos.tutors.get(i)
+            return tu.sede_id if tu else None
+        if t in ("document", "incident"):
+            repo = self.repos.documents if t == "document" else self.repos.incidents
+            rec = repo.get(i)
+            return rec.sede_id if rec else None
+        return None
+
+    def _alert_student_id(self, alert: Alert) -> int | None:
+        t, i = alert.related_entity_type, alert.related_entity_id
+        if i is None:
+            return None
+        if t == "student":
+            return i
+        if t == "rotation_assignment":
+            a = self.repos.assignments.get(i)
+            return a.student_id if a else None
+        if t == "evaluation":
+            ev = self.repos.evaluations.get(i)
+            return ev.student_id if ev else None
+        if t == "student_activity":
+            e = self.repos.student_activities.get(i)
+            return e.student_id if e else None
+        if t in ("document", "incident"):
+            repo = self.repos.documents if t == "document" else self.repos.incidents
+            rec = repo.get(i)
+            return rec.student_id if rec else None
+        return None
+
+    def _alert_tutor_id(self, alert: Alert) -> int | None:
+        if alert.related_entity_type == "tutor":
+            return alert.related_entity_id
+        return None
 
     def refresh_from_rules(self, today: date | None = None) -> int:
         """Sync alerts with the current rule output.

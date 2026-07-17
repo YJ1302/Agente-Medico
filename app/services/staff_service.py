@@ -110,8 +110,9 @@ class CoordinatorService(_StaffBase):
 
     def get_for_view(self, coord_id: int) -> SedeCoordinatorProfile:
         coord = self.repos.sede_coordinators.get_full(coord_id)
-        ensure(coord is not None, "Coordinador no encontrado.", "not_found")
-        ensure(self.can_view(coord), "No puede ver este coordinador.", "coord_scope_denied")
+        ensure(coord is not None, "No tiene permiso para ver este coordinador.", "not_found")
+        ensure(self.can_view(coord),
+              "No tiene permiso para ver este coordinador.", "coord_scope_denied")
         return coord
 
     def build_detail(self, coord_id: int) -> dict:
@@ -275,8 +276,8 @@ class TutorService(_StaffBase):
 
     def get_for_view(self, tutor_id: int) -> TutorProfile:
         tutor = self.repos.tutors.get_full(tutor_id)
-        ensure(tutor is not None, "Tutor no encontrado.", "not_found")
-        ensure(self.can_view(tutor), "No puede ver este tutor.", "tutor_scope_denied")
+        ensure(tutor is not None, "No tiene permiso para ver este tutor.", "not_found")
+        ensure(self.can_view(tutor), "No tiene permiso para ver este tutor.", "tutor_scope_denied")
         return tutor
 
     def build_detail(self, tutor_id: int) -> dict:

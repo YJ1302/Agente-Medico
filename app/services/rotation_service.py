@@ -117,8 +117,9 @@ class RotationService:
 
     def get_for_view(self, assignment_id: int) -> RotationAssignment:
         a = self.repos.assignments.get_full(assignment_id)
-        ensure(a is not None, "Rotación no encontrada.", "not_found")
-        ensure(self.can_view(a), "No puede ver esta rotación.", "rotation_scope_denied")
+        ensure(a is not None, "No tiene permiso para ver esta rotación.", "not_found")
+        ensure(self.can_view(a),
+              "No tiene permiso para ver esta rotación.", "rotation_scope_denied")
         return a
 
     # -- conflict preview -------------------------------------------------
