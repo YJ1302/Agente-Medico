@@ -3,8 +3,16 @@
 #
 # Connect the GitHub repo on Render and it will detect this file and
 # provision the web service + a managed PostgreSQL database automatically.
-# Nothing here seeds or resets data; schema is applied by `alembic upgrade
-# head` as part of the start command, before uvicorn binds to $PORT.
+# Schema is applied by `alembic upgrade head` as part of the start command,
+# before uvicorn binds to $PORT.
+#
+# TEMPORARY: `python -m app.seed` is included in startCommand below solely
+# because the Render Free plan has no Shell access to run it manually and the
+# live database was empty after first deploy. `python -m app.seed` (no
+# --reset flag) is non-destructive: it checks whether the database already
+# has data and skips seeding entirely if so — see app/seed.py::seed() /
+# `_already_seeded()`. It never drops or resets data on its own. Remove this
+# step from startCommand once the demo accounts have been confirmed working.
 
 services:
   - type: web
@@ -14,7 +22,7 @@ services:
     region: oregon
     branch: main
     buildCommand: pip install -r requirements.txt
-    startCommand: "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    startCommand: "alembic upgrade head && python -m app.seed && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
