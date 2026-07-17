@@ -4,6 +4,32 @@ Architectural and business decisions, with rationale. Newest first.
 
 ---
 
+### D-032 · PostgreSQL is a first-class target; SQLite-only assumptions fixed in place (Render deployment prep)
+**Decision:** Preparing for deployment, `DATABASE_URL` is normalized in
+`app/config.py` (`postgres://` → `postgresql://` → `postgresql+psycopg://`)
+so a managed Postgres connection string works without edits, and
+`app/main.py`'s startup hook now only runs `Base.metadata.create_all` on
+SQLite — on Postgres, schema is owned exclusively by `alembic upgrade head`
+(run as the first half of the production start command), so the app can
+never silently create a table with no matching migration. Verified against a
+real PostgreSQL 16 container: two real bugs were found and fixed directly in
+their original migrations/models rather than patched with a follow-up
+migration, since neither has been applied to a real deployed database yet —
+(1) `migrations/versions/e6118382e890...` rebuilt `activity_definitions` by
+drop+recreate, which SQLite allowed with a dangling FK from
+`student_activities` but Postgres rejects
+(`DependentObjectsStillExist`); the migration now drops/recreates that named
+foreign key around the rebuild only on Postgres. (2)
+`Evaluation.status` was `String(20)` while
+`EvaluationStatus.RETURNED_FOR_CORRECTION` is 24 characters — SQLite never
+enforces `VARCHAR` length so this was invisible there; Postgres raises
+`StringDataRightTruncation`. Widened to `String(30)` in both the model and
+the baseline migration. **Why:** SQLite is intentionally permissive
+(ignores FK enforcement by default and never enforces `VARCHAR(N)` length),
+so both bugs were 100% silent in every local/test run until exercised against
+a real Postgres server — exactly the class of issue "the tests pass" cannot
+catch when the target production database differs from the dev database.
+
 ### D-030 · Deterministic query + optional LLM phrasing, not LLM-driven retrieval (Phase 3A)
 **Decision:** The AI Coordinator Assistant always resolves a question to one
 of 11 fixed intents with plain keyword/substring matching against the

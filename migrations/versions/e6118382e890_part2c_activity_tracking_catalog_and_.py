@@ -31,6 +31,17 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    # PostgreSQL enforces the student_activities.definition_id ->
+    # activity_definitions.id foreign key at DDL time (SQLite does not, by
+    # default, which is why this rebuild-in-place strategy worked there
+    # untouched). On Postgres the constraint must be dropped before the old
+    # table is dropped and recreated after the rebuilt table is renamed back
+    # into place, or `DROP TABLE activity_definitions` fails with
+    # "DependentObjectsStillExist".
+    bind = op.get_bind()
+    is_postgres = bind.dialect.name == "postgresql"
+    fk_name = "student_activities_definition_id_fkey"
+
     # -- 1. New history table (no existing constraints to conflict with). ---
     op.create_table(
         'activity_reviews',
@@ -89,10 +100,15 @@ def upgrade() -> None:
             'no_fixed_target', NULL, created_at, updated_at
         FROM activity_definitions
     """)
+    if is_postgres:
+        op.drop_constraint(fk_name, 'student_activities', type_='foreignkey')
     op.drop_table('activity_definitions')
     op.rename_table('activity_definitions_new', 'activity_definitions')
     op.create_index('ix_activity_definitions_code', 'activity_definitions',
                     ['code'], unique=True)
+    if is_postgres:
+        op.create_foreign_key(fk_name, 'student_activities', 'activity_definitions',
+                              ['definition_id'], ['id'])
 
     # -- 3. student_activities: plain nullable ADD COLUMN (no rebuild needed). --
     op.add_column('student_activities', sa.Column('evidence_reference', sa.String(length=255), nullable=True))
@@ -101,6 +117,10 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    bind = op.get_bind()
+    is_postgres = bind.dialect.name == "postgresql"
+    fk_name = "student_activities_definition_id_fkey"
+
     op.drop_column('student_activities', 'created_by_user_id')
     op.drop_column('student_activities', 'submitted_at')
     op.drop_column('student_activities', 'evidence_reference')
@@ -127,7 +147,12 @@ def downgrade() -> None:
                COALESCE(target_count, 1), created_at, updated_at
         FROM activity_definitions
     """)
+    if is_postgres:
+        op.drop_constraint(fk_name, 'student_activities', type_='foreignkey')
     op.drop_table('activity_definitions')
     op.rename_table('activity_definitions_old', 'activity_definitions')
+    if is_postgres:
+        op.create_foreign_key(fk_name, 'student_activities', 'activity_definitions',
+                              ['definition_id'], ['id'])
 
     op.drop_table('activity_reviews')

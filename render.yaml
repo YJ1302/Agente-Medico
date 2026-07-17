@@ -1,0 +1,68 @@
+# Render Blueprint for UPeU Internado 360.
+# https://render.com/docs/blueprint-spec
+#
+# Connect the GitHub repo on Render and it will detect this file and
+# provision the web service + a managed PostgreSQL database automatically.
+# Nothing here seeds or resets data; schema is applied by `alembic upgrade
+# head` as part of the start command, before uvicorn binds to $PORT.
+
+services:
+  - type: web
+    name: upeu-internado360
+    env: python
+    plan: free
+    region: oregon
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.7
+      - key: APP_ENV
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: DEMO_MODE
+        value: "false"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: SESSION_COOKIE_NAME
+        value: internado360_session
+      - key: SESSION_MAX_AGE
+        value: "28800"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: upeu-internado360-db
+          property: connectionString
+      # Trust Render's edge proxy for X-Forwarded-Proto/For so uvicorn's
+      # ProxyHeadersMiddleware reports the real client scheme/IP (correct
+      # audit-log IPs; secure-cookie behavior itself does not depend on this).
+      - key: FORWARDED_ALLOW_IPS
+        value: "*"
+      # AI Coordinator Assistant stays off until explicitly configured with a
+      # real provider key.
+      - key: AI_ASSISTANT_ENABLED
+        value: "false"
+      - key: AI_ASSISTANT_PROVIDER
+        value: anthropic
+      - key: AI_ASSISTANT_MODEL
+        value: claude-3-5-haiku-20241022
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      # Upload/import storage — see "Remaining deployment limitations" in
+      # DEVELOPMENT_GUIDE.md: Render's free web service disk is ephemeral, so
+      # files here do not survive a redeploy/restart unless a paid persistent
+      # disk is attached at this same path.
+      - key: ATTACHMENT_STORAGE_DIR
+        value: var/attachments
+      - key: IMPORT_STORAGE_DIR
+        value: var/imports
+
+databases:
+  - name: upeu-internado360-db
+    plan: free
+    databaseName: upeu_internado360
+    user: upeu_internado360

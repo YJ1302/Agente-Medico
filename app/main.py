@@ -3,8 +3,11 @@
 Run locally with:
     uvicorn app.main:app --reload
 
-Wires middleware (signed sessions), static files, routes and error handlers,
-and ensures the database schema exists on startup.
+Wires middleware (signed sessions), static files, routes and error handlers.
+On SQLite (local/dev) startup also ensures the schema exists (create_all);
+on PostgreSQL, schema is owned exclusively by Alembic migrations, run before
+the server starts (see the deployment start command). No seeding or resetting
+ever happens automatically at startup on any backend.
 """
 
 from __future__ import annotations
@@ -95,12 +98,28 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     def _startup() -> None:
-        init_db()
+        # SQLite (local/dev): create_all is a convenient, idempotent bootstrap
+        # so a fresh checkout works without running Alembic first. In
+        # production (PostgreSQL), schema is owned exclusively by Alembic
+        # (`alembic upgrade head`, run before the server starts — see the
+        # deployment start command) so create_all is skipped: letting the app
+        # silently create tables that have no matching migration would cause
+        # schema drift and mask a missing revision. Startup never seeds or
+        # resets data either way.
+        if settings.database_url.startswith("sqlite"):
+            init_db()
         logger.info("%s v%s started (env=%s)", settings.app_name, __version__, settings.app_env)
 
     @app.get("/healthz", include_in_schema=False)
     def healthz() -> dict:
         return {"status": "ok", "version": __version__}
+
+    @app.get("/health", include_in_schema=False)
+    def health() -> dict:
+        """Minimal health check for the hosting platform (Render). Returns
+        only a static status — no database query, no secrets, no version
+        string — so it stays fast and never leaks internal state."""
+        return {"status": "ok"}
 
     return app
 

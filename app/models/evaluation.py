@@ -60,7 +60,10 @@ class Evaluation(IntPKMixin, TimestampMixin, SoftDeleteMixin, Base):
     )
 
     status: Mapped[str] = mapped_column(
-        String(20), default=EvaluationStatus.PENDING.value, nullable=False
+        # 30, not 20: EvaluationStatus.RETURNED_FOR_CORRECTION is 24 chars.
+        # SQLite never enforces VARCHAR length so this was invisible there;
+        # PostgreSQL does (see DECISIONS_LOG.md D-032).
+        String(30), default=EvaluationStatus.PENDING.value, nullable=False
     )
 
     # Cached aggregate scores (computed from criteria when submitted).

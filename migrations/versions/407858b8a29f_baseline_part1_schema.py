@@ -288,7 +288,7 @@ def upgrade() -> None:
     sa.Column('assignment_id', sa.Integer(), nullable=False),
     sa.Column('student_id', sa.Integer(), nullable=False),
     sa.Column('tutor_id', sa.Integer(), nullable=True),
-    sa.Column('status', sa.String(length=20), nullable=False),
+    sa.Column('status', sa.String(length=30), nullable=False),
     sa.Column('score_knowledge', sa.Float(), nullable=True),
     sa.Column('score_performance', sa.Float(), nullable=True),
     sa.Column('score_attitude', sa.Float(), nullable=True),

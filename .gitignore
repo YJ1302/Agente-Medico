@@ -8,13 +8,26 @@ env/
 
 # Environment & secrets
 .env
+.env.*
+!.env.example
 
-# Database artifacts (prototype SQLite files)
+# Database artifacts (local SQLite files, wherever they end up)
 app/data/*.db
 app/data/*.sqlite3
+*.db
+*.sqlite3
 
-# Uploaded attachments (stored outside the public static folder)
+# Uploaded attachments, bulk-import uploads and any other generated files
+# stored outside the public static folder (never persisted to Git; on
+# Render's free tier this directory is also not persisted across deploys —
+# see DEVELOPMENT_GUIDE.md "Remaining deployment limitations").
 var/
+
+# Real client reference workbooks (contain real, non-fictional scheduling
+# data) — never committed. Kept locally for developers who need to compare
+# the import pipeline against the actual source format.
+docs/*.xlsx
+docs/*.xlsm
 
 # Logs
 *.log

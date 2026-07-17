@@ -270,8 +270,13 @@ def test_gemini_unavailable_without_api_key(monkeypatch):
 
 
 def test_gemini_sdk_not_installed_falls_back(monkeypatch):
-    # google-genai is not installed in this test environment, so the real
-    # _call_gemini path must hit ImportError and fail closed (not raise).
+    # Force the real `_call_gemini` import guard's ImportError branch
+    # deterministically, regardless of whether google-genai happens to be
+    # installed in this environment (it may or may not be, depending on
+    # whether `pip install -r requirements.txt` has run) — a sys.modules
+    # sentinel of None makes `from google import genai` raise ImportError.
+    import sys
+    monkeypatch.setitem(sys.modules, "google.genai", None)
     monkeypatch.setattr(settings, "ai_assistant_enabled", True)
     monkeypatch.setattr(settings, "ai_assistant_provider", "gemini")
     monkeypatch.setattr(settings, "gemini_api_key", "fake-gemini-key")

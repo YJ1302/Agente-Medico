@@ -10,6 +10,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Absolute path to the project root (the folder that contains `app/`).
@@ -42,11 +43,37 @@ class Settings(BaseSettings):
     session_max_age: int = 60 * 60 * 8  # 8 hours, in seconds
 
     # Database ------------------------------------------------------------
+    # SQLite by default for local development. In production, set
+    # DATABASE_URL to a PostgreSQL URL (e.g. Render's managed Postgres
+    # connection string) — normalized below for SQLAlchemy/psycopg3
+    # compatibility. No other code needs to know which backend is in use.
     database_url: str = "sqlite:///./app/data/internado360.db"
 
     # Server --------------------------------------------------------------
+    # `port` is populated from the PORT env var automatically (case-
+    # insensitive matching); Render sets this. The actual bind host/port on
+    # Render come from the start command's --host/--port flags, not from
+    # these fields — they remain useful for local `uvicorn` invocations that
+    # read them explicitly.
     host: str = "127.0.0.1"
     port: int = 8000
+
+    @field_validator("database_url")
+    @classmethod
+    def _normalize_database_url(cls, v: str) -> str:
+        """Normalize a managed-Postgres URL for SQLAlchemy + psycopg3.
+
+        Providers such as Render/Heroku issue ``postgres://...`` or
+        ``postgresql://...``; SQLAlchemy 2.x requires the ``postgresql://``
+        scheme, and this project's Postgres driver is psycopg 3, which needs
+        the explicit ``+psycopg`` dialect suffix. SQLite URLs pass through
+        unchanged.
+        """
+        if v.startswith("postgres://"):
+            v = "postgresql://" + v[len("postgres://"):]
+        if v.startswith("postgresql://"):
+            v = "postgresql+psycopg://" + v[len("postgresql://"):]
+        return v
 
     # Logging -------------------------------------------------------------
     log_level: str = "INFO"
