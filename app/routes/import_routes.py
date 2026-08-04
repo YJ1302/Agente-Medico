@@ -3,9 +3,14 @@
 Upload → sheet → map → validate → preview → confirm → result. Every mutation is
 POST + CSRF-protected; nothing is imported automatically. Authorization/scope
 live in ``ImportService``.
+
+Multi-sheet import flow (new): Upload → preview detected sheets → validate all
+→ review results by sheet → confirm (transactional for all sheets).
 """
 
 from __future__ import annotations
+
+import json
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse, Response
@@ -69,8 +74,12 @@ def import_history(request: Request, identity: Identity = Depends(require_identi
 
 @router.get("/imports/new")
 def import_new(request: Request, identity: Identity = Depends(require_identity),
-               db: Session = Depends(get_db), profile: str = "students"):
+               db: Session = Depends(get_db), profile: str = "students", multi: bool = False):
     svc = ImportService(db, identity)
+    if multi:
+        # Multi-sheet import (template mode)
+        return render(request, "pages/import_new_multi.html", identity=identity,
+                      page_title="Nueva importación masiva (multi-hoja)", page_icon="upload")
     prof = get_profile(profile)
     ensure(prof is not None and svc.can_use_profile(profile),
            "No tiene permiso para este tipo de importación.", "import_profile_denied")
@@ -83,22 +92,30 @@ def import_new(request: Request, identity: Identity = Depends(require_identity),
 @router.post("/imports")
 async def import_create(request: Request, identity: Identity = Depends(require_identity),
                         db: Session = Depends(get_db), _: None = Depends(csrf_protect),
-                        profile: str = Form(...), scheme_id: str = Form("")):
+                        profile: str = Form("students"), scheme_id: str = Form(""), multi: str = Form("")):
     svc = ImportService(db, identity)
     form = await request.form()
     upload = form.get("file")
     if upload is None or not getattr(upload, "filename", ""):
         flash(request, "Seleccione un archivo Excel.", "danger")
-        return RedirectResponse(url=f"/imports/new?profile={profile}", status_code=303)
+        url = f"/imports/new?multi=1" if (multi or profile == "multi_sheet") else f"/imports/new?profile={profile}"
+        return RedirectResponse(url=url, status_code=303)
     raw = await upload.read()
     try:
-        batch = svc.create_batch(profile, upload.filename, upload.content_type, raw,
-                                 scheme_id=int(scheme_id) if scheme_id.strip() else None,
-                                 ip=client_ip(request))
+        if multi or profile == "multi_sheet":
+            # Multi-sheet import: auto-detect sheets and profile them
+            batch = svc.create_multi_sheet_batch(upload.filename, upload.content_type, raw,
+                                                 ip=client_ip(request))
+            return RedirectResponse(url=f"/imports/{batch.id}/multi-preview", status_code=303)
+        else:
+            batch = svc.create_batch(profile, upload.filename, upload.content_type, raw,
+                                     scheme_id=int(scheme_id) if scheme_id.strip() else None,
+                                     ip=client_ip(request))
+            return RedirectResponse(url=f"/imports/{batch.id}/sheet", status_code=303)
     except ValidationError as e:
         flash(request, list(e.errors.values())[0], "danger")
-        return RedirectResponse(url=f"/imports/new?profile={profile}", status_code=303)
-    return RedirectResponse(url=f"/imports/{batch.id}/sheet", status_code=303)
+        url = f"/imports/new?multi=1" if (multi or profile == "multi_sheet") else f"/imports/new?profile={profile}"
+        return RedirectResponse(url=url, status_code=303)
 
 
 @router.get("/imports/{batch_id}")
@@ -108,15 +125,40 @@ def import_detail(batch_id: int, request: Request,
     svc = ImportService(db, identity)
     batch = svc.get_for_view(batch_id)
     # Route to the correct wizard step for in-progress batches.
-    if batch.status == ImportStatus.UPLOADED.value:
-        return RedirectResponse(url=f"/imports/{batch.id}/sheet", status_code=303)
-    if batch.status == ImportStatus.MAPPED.value:
-        return RedirectResponse(url=f"/imports/{batch.id}/map", status_code=303)
-    if batch.status == ImportStatus.VALIDATED.value:
-        return RedirectResponse(url=f"/imports/{batch.id}/preview", status_code=303)
-    return render(request, "pages/import_result.html", identity=identity,
-                  page_title=f"Importación {batch.code}", page_icon="clipboard-check",
-                  batch=batch, rows=svc.preview_rows(batch, limit=300), mode_labels=_MODE_LABELS)
+    if batch.profile == "multi_sheet":
+        if batch.status == ImportStatus.UPLOADED.value:
+            return RedirectResponse(url=f"/imports/{batch.id}/multi-preview", status_code=303)
+        if batch.status == ImportStatus.VALIDATED.value:
+            return RedirectResponse(url=f"/imports/{batch.id}/multi-result", status_code=303)
+        # Completed/failed — show result
+        rows = svc.preview_rows(batch, limit=1000)
+        by_sheet = {}
+        for r in rows:
+            sheet = r.get("source_sheet", "?")
+            if sheet not in by_sheet:
+                by_sheet[sheet] = {"rows": [], "stats": {"valid": 0, "warning": 0, "error": 0}}
+            by_sheet[sheet]["rows"].append(r)
+            status = r["status"]
+            if status == "error":
+                by_sheet[sheet]["stats"]["error"] += 1
+            elif status == "warning":
+                by_sheet[sheet]["stats"]["warning"] += 1
+            else:
+                by_sheet[sheet]["stats"]["valid"] += 1
+        return render(request, "pages/import_multi_result.html", identity=identity,
+                      page_title=f"{batch.code} · Resultados", page_icon="eye",
+                      batch=batch, by_sheet=by_sheet, mode_labels=_MODE_LABELS)
+    else:
+        # Single-sheet import
+        if batch.status == ImportStatus.UPLOADED.value:
+            return RedirectResponse(url=f"/imports/{batch.id}/sheet", status_code=303)
+        if batch.status == ImportStatus.MAPPED.value:
+            return RedirectResponse(url=f"/imports/{batch.id}/map", status_code=303)
+        if batch.status == ImportStatus.VALIDATED.value:
+            return RedirectResponse(url=f"/imports/{batch.id}/preview", status_code=303)
+        return render(request, "pages/import_result.html", identity=identity,
+                      page_title=f"Importación {batch.code}", page_icon="clipboard-check",
+                      batch=batch, rows=svc.preview_rows(batch, limit=300), mode_labels=_MODE_LABELS)
 
 
 @router.get("/imports/{batch_id}/sheet")
@@ -222,3 +264,80 @@ def import_error_report(batch_id: int, request: Request,
     return Response(content=content,
                     media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     headers={"Content-Disposition": f'attachment; filename="{batch.code}_errores.xlsx"'})
+
+
+# -- multi-sheet import routes ------------------------------------------------
+@router.get("/imports/{batch_id}/multi-preview")
+def import_multi_preview(batch_id: int, request: Request,
+                        identity: Identity = Depends(require_identity),
+                        db: Session = Depends(get_db)):
+    """Show detected sheets and allow proceeding to validation."""
+    svc = ImportService(db, identity)
+    batch = svc.get_for_view(batch_id)
+    ensure(batch.profile == "multi_sheet",
+           "No es un lote de importación multi-hoja.", "import_not_multisheet")
+    detected = json.loads(batch.mapping_json or "{}")
+    sheet_profiles = [(p, detected.get(p)) for p in ["sedes", "coordinators", "tutors", "students", "rotations"]
+                      if detected.get(p)]
+    return render(request, "pages/import_multi_preview.html", identity=identity,
+                  page_title=f"{batch.code} · Hojas detectadas", page_icon="table",
+                  batch=batch, sheet_profiles=sheet_profiles)
+
+
+@router.post("/imports/{batch_id}/multi-validate")
+async def import_multi_validate(batch_id: int, request: Request,
+                               identity: Identity = Depends(require_identity),
+                               db: Session = Depends(get_db), _: None = Depends(csrf_protect)):
+    """Validate all detected sheets."""
+    svc = ImportService(db, identity)
+    try:
+        batch = svc.validate_multi_sheet_batch(batch_id, ip=client_ip(request))
+    except ValidationError as e:
+        flash(request, list(e.errors.values())[0], "danger")
+        return RedirectResponse(url=f"/imports/{batch_id}/multi-preview", status_code=303)
+    return RedirectResponse(url=f"/imports/{batch_id}/multi-result", status_code=303)
+
+
+@router.get("/imports/{batch_id}/multi-result")
+def import_multi_result(batch_id: int, request: Request,
+                       identity: Identity = Depends(require_identity),
+                       db: Session = Depends(get_db)):
+    """Show validation results grouped by sheet."""
+    svc = ImportService(db, identity)
+    batch = svc.get_for_view(batch_id)
+    ensure(batch.profile == "multi_sheet",
+           "No es un lote de importación multi-hoja.", "import_not_multisheet")
+    rows = svc.preview_rows(batch, limit=1000)
+    # Group rows by source sheet
+    by_sheet = {}
+    for r in rows:
+        sheet = r.get("source_sheet", "?")
+        if sheet not in by_sheet:
+            by_sheet[sheet] = {"rows": [], "stats": {"valid": 0, "warning": 0, "error": 0}}
+        by_sheet[sheet]["rows"].append(r)
+        status = r["status"]
+        if status == "error":
+            by_sheet[sheet]["stats"]["error"] += 1
+        elif status == "warning":
+            by_sheet[sheet]["stats"]["warning"] += 1
+        else:
+            by_sheet[sheet]["stats"]["valid"] += 1
+    return render(request, "pages/import_multi_result.html", identity=identity,
+                  page_title=f"{batch.code} · Resultados", page_icon="eye",
+                  batch=batch, by_sheet=by_sheet, mode_labels=_MODE_LABELS)
+
+
+@router.post("/imports/{batch_id}/multi-confirm")
+async def import_multi_confirm(batch_id: int, request: Request,
+                              identity: Identity = Depends(require_identity),
+                              db: Session = Depends(get_db), _: None = Depends(csrf_protect)):
+    """Confirm and import all validated sheets (transactional)."""
+    svc = ImportService(db, identity)
+    try:
+        svc.confirm_multi_sheet_batch(batch_id, ip=client_ip(request))
+    except ValidationError as e:
+        flash(request, list(e.errors.values())[0], "danger")
+        return RedirectResponse(url=f"/imports/{batch_id}/multi-result", status_code=303)
+    flash(request, "Importación confirmada. Todos los datos fueron importados correctamente.",
+          FLASH_SUCCESS)
+    return RedirectResponse(url=f"/imports/{batch_id}", status_code=303)

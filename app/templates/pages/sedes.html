@@ -18,7 +18,7 @@
     </div>
     <div class="list-def">
       <dt>Nombre</dt><dd>{{ sede.name }}</dd>
-      <dt>Tipo</dt><dd>{{ 'Hospital' if sede.sede_type == 'hospital' else 'Centro de salud' }}</dd>
+      <dt>Tipo</dt><dd>{{ {'hospital': 'Hospital', 'health_center': 'Centro de salud', 'clinic': 'Clínica'}.get(sede.sede_type, sede.sede_type) }}</dd>
       <dt>Ciudad</dt><dd>{{ sede.city or '—' }}</dd>
     </div>
   </div>

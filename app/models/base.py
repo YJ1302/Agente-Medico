@@ -55,10 +55,11 @@ class IntPKMixin:
 # Shared enumerations (stored as plain strings for SQLite portability)
 # ---------------------------------------------------------------------------
 class InstitutionCode(str, enum.Enum):
-    """The two internship provider systems in scope for the internship."""
+    """The internship provider systems in scope for the internship."""
 
     MINSA = "MINSA"
     ESSALUD = "ESSALUD"
+    PRIVADA = "PRIVADA"
 
 
 class StudentCycle(str, enum.Enum):

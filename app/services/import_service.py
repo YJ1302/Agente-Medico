@@ -33,6 +33,17 @@ from app.services.validators import ValidationError
 _ACTIVE_STATUSES = {ImportStatus.UPLOADED.value, ImportStatus.MAPPED.value,
                     ImportStatus.VALIDATED.value}
 
+# Sheet-to-profile mapping with dependency order
+_SHEET_TO_PROFILE = {
+    "sedes": "sedes",
+    "coordinadores": "coordinators",
+    "tutores": "tutors",
+    "internos": "students",
+    "rotaciones": "rotations",
+}
+
+_PROFILE_ORDER = ["sedes", "coordinators", "tutors", "students", "rotations"]
+
 
 class ImportService:
     def __init__(self, db: Session, identity: Identity) -> None:
@@ -429,6 +440,7 @@ class ImportService:
                 "messages": json.loads(r.messages_json or "[]"),
                 "status": r.status, "action": r.action,
                 "target_entity_id": r.target_entity_id,
+                "source_sheet": r.source_sheet,
             })
         return out
 
@@ -456,3 +468,254 @@ class ImportService:
                           entity_type="import_batch", entity_id=batch.id,
                           detail={"code": batch.code}, ip_address=ip)
         return content
+
+    # -- multi-sheet import flow ------------------------------------------
+    def detect_sheets(self, raw: bytes) -> dict[str, str | None]:
+        """Detect sheets in workbook and match to profiles.
+        Returns {profile_code: sheet_name} for detected sheets, None for unmatched."""
+        sheet_names = excel_reader.list_sheets(raw)
+        result = {}
+        for profile_code in _PROFILE_ORDER:
+            for sheet_name in sheet_names:
+                # Match by profile code name (e.g., "internos" sheet → "students" profile)
+                if sheet_name.lower().strip() == profile_code or \
+                   sheet_name.lower().strip() in [k for k, v in _SHEET_TO_PROFILE.items() if v == profile_code]:
+                    result[profile_code] = sheet_name
+                    break
+        return result
+
+    def create_multi_sheet_batch(self, filename: str, content_type: str | None, raw: bytes,
+                                 ip: str | None = None) -> ImportBatch:
+        """Create a batch for multi-sheet import. Profile is 'multi_sheet'."""
+        excel_reader.validate_upload(filename, content_type, raw)
+        excel_reader.load_workbook(raw)
+        stored = f"{uuid.uuid4().hex}.{filename.rsplit('.', 1)[-1].lower()}"
+        self._path(stored).write_bytes(raw)
+        code = self._allocate_code()
+
+        # Detect available sheets and map to profiles
+        detected = self.detect_sheets(raw)
+        batch = ImportBatch(
+            code=code, profile="multi_sheet", original_filename=os.path.basename(filename),
+            stored_filename=stored, status=ImportStatus.UPLOADED.value,
+            mapping_json=json.dumps(detected, ensure_ascii=False),
+            created_by_user_id=self.identity.user_id,
+        )
+        self.repos.import_batches.add(batch)
+        self.db.flush()
+        self.audit.record(audit.UPLOAD_IMPORT_FILE, identity=self.identity,
+                          entity_type="import_batch", entity_id=batch.id,
+                          detail={"code": code, "profile": "multi_sheet",
+                                  "filename": batch.original_filename, "size": len(raw),
+                                  "detected_sheets": detected},
+                          ip_address=ip, commit=False)
+        self.audit.record(audit.CREATE_IMPORT_BATCH, identity=self.identity,
+                          entity_type="import_batch", entity_id=batch.id,
+                          detail={"code": code, "profile": "multi_sheet"}, ip_address=ip, commit=False)
+        self.db.commit()
+        return batch
+
+    def validate_multi_sheet_batch(self, batch_id: int, ip: str | None = None) -> ImportBatch:
+        """Validate all sheets in a multi-sheet batch."""
+        batch = self._get_editable(batch_id)
+        ensure(batch.profile == "multi_sheet", "No es un lote de importación multi-hoja.",
+               "import_not_multisheet")
+        raw = self._read_bytes(batch)
+        detected = json.loads(batch.mapping_json or "{}")
+
+        # Validate each sheet in dependency order. Rows created by an earlier
+        # sheet (e.g. Sedes) must be visible to later sheets' lookups (e.g. a
+        # Coordinador row referencing that same Sede) — otherwise every
+        # dependent row would wrongly fail with "la sede es obligatoria"
+        # during validation even though confirm would succeed. We flush
+        # valid create/update rows into a SAVEPOINT so subsequent profile
+        # lookups see them, then roll the whole savepoint back at the end so
+        # validation never actually persists anything.
+        self.repos.import_rows.delete_for_batch(batch.id)
+        all_results = []
+        total_valid = total_warning = total_error = 0
+        ctx = ImportContext(self.db, self.identity, sede_scope_ids=self._sede_scope(), batch=batch)
+
+        nested = self.db.begin_nested()
+        try:
+            for profile_code in _PROFILE_ORDER:
+                if profile_code not in detected or not detected[profile_code]:
+                    continue
+                sheet_name = detected[profile_code]
+                profile = get_profile(profile_code)
+                if not profile or not self.can_use_profile(profile_code):
+                    continue
+
+                preview = excel_reader.read_sheet(raw, sheet_name)
+                mapping = profile.auto_map(preview.headers)
+
+                for idx, raw_row in enumerate(preview.rows, start=1):
+                    normalized = profile.normalize(raw_row, mapping)
+                    data = profile.resolve(ctx, normalized)
+                    existing = profile.find_existing(ctx, data)
+                    result = profile.validate(ctx, data, existing)
+                    messages = [m.as_dict() for m in result.messages]
+
+                    if not profile.in_scope(ctx, data):
+                        messages.append({"level": "error", "field": "sede",
+                                       "message": "Fuera de su ámbito de sede."})
+
+                    action, mode_msgs = self._decide_action(ImportMode.VALID_ONLY.value, existing,
+                                                           bool(any(m["level"] == "error" for m in messages)))
+                    messages.extend(mode_msgs)
+
+                    has_error = any(m["level"] == "error" for m in messages)
+                    has_warning = any(m["level"] == "warning" for m in messages)
+                    status = (ImportRowStatus.ERROR.value if has_error
+                             else ImportRowStatus.WARNING.value if has_warning
+                             else ImportRowStatus.VALID.value)
+
+                    if has_error:
+                        total_error += 1
+                    elif has_warning:
+                        total_warning += 1
+                    else:
+                        total_valid += 1
+
+                    # Stage the row so later sheets can resolve references to it
+                    # (flush only — never committed; rolled back below).
+                    if not has_error and action in ("create", "update"):
+                        profile.apply(ctx, data, existing, action)
+
+                    raw_display = {f.label: normalized.get(f.target, "")
+                                  for f in profile.display_fields(ctx)}
+                    all_results.append({
+                        "profile": profile_code,
+                        "sheet": sheet_name,
+                        "row_number": idx, "raw": raw_display, "normalized": normalized,
+                        "messages": messages, "status": status,
+                        "action": None if has_error else action,
+                        "existing": existing, "data": data,
+                    })
+        finally:
+            nested.rollback()
+
+        # Store validation results
+        for r in all_results:
+            self.db.add(ImportRow(
+                batch_id=batch.id, row_number=r["row_number"], source_sheet=r["sheet"],
+                raw_json=json.dumps(r["raw"], ensure_ascii=False, default=str),
+                normalized_json=json.dumps(r["normalized"], ensure_ascii=False, default=str),
+                messages_json=json.dumps(r["messages"], ensure_ascii=False),
+                status=r["status"], action=r["action"]))
+
+        batch.total_rows = len(all_results)
+        batch.valid_rows = total_valid
+        batch.warning_rows = total_warning
+        batch.error_rows = total_error
+        batch.status = ImportStatus.VALIDATED.value
+        self.db.flush()
+        self.audit.record(audit.VALIDATE_IMPORT_BATCH, identity=self.identity,
+                          entity_type="import_batch", entity_id=batch.id,
+                          detail={"code": batch.code, "total": batch.total_rows,
+                                  "valid": batch.valid_rows, "errors": batch.error_rows},
+                          ip_address=ip, commit=False)
+        self.db.commit()
+        return batch
+
+    def confirm_multi_sheet_batch(self, batch_id: int, ip: str | None = None) -> ImportBatch:
+        """Confirm and import all sheets in a multi-sheet batch (transactional)."""
+        batch = self.repos.import_batches.get_full(batch_id)
+        ensure(batch is not None, "Importación no encontrada.", "not_found")
+        ensure(batch.profile == "multi_sheet", "No es un lote de importación multi-hoja.",
+               "import_not_multisheet")
+        ensure(batch.status == ImportStatus.VALIDATED.value,
+               "La importación no está lista para confirmar (o ya fue procesada).",
+               "import_not_validated")
+
+        raw = self._read_bytes(batch)
+        detected = json.loads(batch.mapping_json or "{}")
+
+        # Re-process all sheets in dependency order and persist
+        ctx = ImportContext(self.db, self.identity, sede_scope_ids=self._sede_scope(), batch=batch)
+        created = updated = skipped = failed = 0
+        self.repos.import_rows.delete_for_batch(batch.id)
+
+        try:
+            for profile_code in _PROFILE_ORDER:
+                if profile_code not in detected or not detected[profile_code]:
+                    continue
+                sheet_name = detected[profile_code]
+                profile = get_profile(profile_code)
+                if not profile or not self.can_use_profile(profile_code):
+                    continue
+
+                # Re-process this sheet for import
+                preview = excel_reader.read_sheet(raw, sheet_name)
+                mapping = profile.auto_map(preview.headers)
+
+                for idx, raw_row in enumerate(preview.rows, start=1):
+                    normalized = profile.normalize(raw_row, mapping)
+                    data = profile.resolve(ctx, normalized)
+                    existing = profile.find_existing(ctx, data)
+                    result = profile.validate(ctx, data, existing)
+                    messages = [m.as_dict() for m in result.messages]
+
+                    if not profile.in_scope(ctx, data):
+                        messages.append({"level": "error", "field": "sede",
+                                       "message": "Fuera de su ámbito de sede."})
+
+                    action, mode_msgs = self._decide_action(ImportMode.VALID_ONLY.value, existing,
+                                                           bool(any(m["level"] == "error" for m in messages)))
+                    messages.extend(mode_msgs)
+
+                    has_error = any(m["level"] == "error" for m in messages)
+                    status = (ImportRowStatus.ERROR.value if has_error
+                             else ImportRowStatus.WARNING.value if any(m["level"] == "warning" for m in messages)
+                             else ImportRowStatus.VALID.value)
+
+                    raw_display = {f.label: normalized.get(f.target, "")
+                                  for f in profile.display_fields(ctx)}
+                    row = ImportRow(
+                        batch_id=batch.id, row_number=idx, source_sheet=sheet_name,
+                        raw_json=json.dumps(raw_display, ensure_ascii=False, default=str),
+                        normalized_json=json.dumps(normalized, ensure_ascii=False, default=str),
+                        messages_json=json.dumps(messages, ensure_ascii=False))
+
+                    if has_error or action is None:
+                        row.status = ImportRowStatus.FAILED.value
+                        failed += 1
+                    elif action == "skip":
+                        row.status = ImportRowStatus.SKIPPED.value
+                        skipped += 1
+                    else:
+                        etype, eid = profile.apply(ctx, data, existing, action)
+                        row.status = (ImportRowStatus.CREATED.value if action == "create"
+                                     else ImportRowStatus.UPDATED.value)
+                        row.target_entity_type, row.target_entity_id = etype, eid
+                        if action == "create":
+                            created += 1
+                        else:
+                            updated += 1
+
+                    row.action = action
+                    self.db.add(row)
+
+            batch.created_count = created
+            batch.updated_count = updated
+            batch.skipped_count = skipped
+            batch.failed_count = failed
+            batch.status = (ImportStatus.PARTIAL.value if (skipped or failed)
+                           else ImportStatus.CONFIRMED.value)
+            batch.confirmed_by_user_id = self.identity.user_id
+            batch.confirmed_at = utcnow()
+            self.audit.record(audit.CONFIRM_IMPORT_BATCH, identity=self.identity,
+                              entity_type="import_batch", entity_id=batch.id,
+                              detail={"code": batch.code, "created": created, "updated": updated,
+                                      "skipped": skipped, "failed": failed, "multi_sheet": True},
+                              ip_address=ip, commit=False)
+            self.db.commit()  # single commit — all rows or none
+        except Exception:
+            self.db.rollback()
+            batch = self.repos.import_batches.get(batch_id)
+            batch.status = ImportStatus.FAILED.value
+            self.db.commit()
+            raise
+
+        self._cleanup_file(batch)
+        return batch

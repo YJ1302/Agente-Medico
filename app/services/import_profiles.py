@@ -48,6 +48,19 @@ def as_str(v) -> str:
     return str(v).strip()
 
 
+def _normalize_sede_type(text: str) -> str:
+    """Map Spanish sede-type labels (any case/accent) to the internal codes
+    used by VALID_SEDE_TYPES (hospital | health_center | clinic)."""
+    t = (text or "").strip().lower()
+    if "clinic" in t or "clín" in t:
+        return "clinic"
+    if "centro" in t or "salud" in t or "health" in t:
+        return "health_center"
+    if "hospital" in t:
+        return "hospital"
+    return t  # let the downstream validator flag an invalid value
+
+
 def _idstr(x) -> str:
     """Render a resolved id as a string for the form-style ``_validate`` methods
     (they re-parse ids with ``int_field``); '' when unresolved."""
@@ -153,14 +166,23 @@ class ImportContext:
         t = (text or "").strip().lower()
         if not t:
             return None
+        # Exact match on code (case-insensitive)
         for inst in self.repos.institution_types.list():
-            if inst.code.lower() == t or inst.name.lower() == t or t in inst.name.lower():
+            if inst.code.lower() == t:
                 return inst.id
-        if "essalud" in t or "es salud" in t:
+        # Match on name
+        for inst in self.repos.institution_types.list():
+            if inst.name.lower() == t or t in inst.name.lower():
+                return inst.id
+        # Special handling for common abbreviations
+        if "essalud" in t or "es salud" in t or "seguro social" in t:
             it = self.repos.institution_types.get_by_code("ESSALUD")
             return it.id if it else None
-        if "minsa" in t:
+        if "minsa" in t or "ministerio" in t:
             it = self.repos.institution_types.get_by_code("MINSA")
+            return it.id if it else None
+        if "privad" in t:
+            it = self.repos.institution_types.get_by_code("PRIVADA")
             return it.id if it else None
         return None
 
@@ -168,10 +190,12 @@ class ImportContext:
         t = (text or "").strip().lower()
         if not t:
             return None
+        # Exact match on name or short_name (case-insensitive)
         for s in self.repos.sedes.active():
             if s.name.lower() == t or (s.short_name or "").lower() == t:
                 return s.id
-        for s in self.repos.sedes.active():  # loose contains match
+        # Partial match as fallback (case-insensitive)
+        for s in self.repos.sedes.active():
             if t in s.name.lower() or (s.short_name and t in s.short_name.lower()):
                 return s.id
         return None
@@ -180,8 +204,13 @@ class ImportContext:
         t = (text or "").strip().lower()
         if not t:
             return None
+        # Exact match first (case-insensitive)
         for rt in self.repos.rotation_types.list():
-            if rt.name.lower() == t or rt.code.lower() == t or t in rt.name.lower():
+            if rt.code.lower() == t or rt.name.lower() == t:
+                return rt.id
+        # Partial match as fallback
+        for rt in self.repos.rotation_types.list():
+            if t in rt.name.lower() or t in rt.code.lower():
                 return rt.id
         return None
 
@@ -189,8 +218,13 @@ class ImportContext:
         t = (text or "").strip().lower()
         if not t:
             return None
+        # Exact match first (case-insensitive)
         for p in self.repos.periods.ordered():
-            if p.code.lower() == t or p.name.lower() == t or t in p.name.lower():
+            if p.code.lower() == t or p.name.lower() == t:
+                return p.id
+        # Partial match as fallback
+        for p in self.repos.periods.ordered():
+            if t in p.name.lower() or t in p.code.lower():
                 return p.id
         return None
 
@@ -368,7 +402,7 @@ class SedeProfile(ImportProfile):
         return {
             "name": normalized["name"], "short_name": normalized["short_name"],
             "institution_type_id": _idstr(ctx.institution_id(normalized["institution"])),
-            "sede_type": normalized["sede_type"].strip().lower(),
+            "sede_type": _normalize_sede_type(normalized["sede_type"]),
             "city": normalized["city"] or None, "address": normalized["address"] or None,
         }
 

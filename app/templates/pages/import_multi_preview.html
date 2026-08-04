@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import csrf_field %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="page-head"><h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1>
+  <p>Se detectaron las siguientes hojas en el archivo. Revise que sean correctas y confirme para validar.</p></div>
+
+<nav class="breadcrumbs" style="margin-bottom:12px">
+  <a href="/imports">Centro de Importación</a> <i class="bi bi-chevron-right"></i> <span>{{ batch.code }}</span>
+</nav>
+
+<div class="card" style="margin-bottom:16px">
+  <div class="card-head"><h3><i class="bi bi-info-circle"></i> Hojas detectadas</h3></div>
+  {% if sheet_profiles %}
+  <div style="display:grid;gap:8px">
+    {% for profile_code, sheet_name in sheet_profiles %}
+    <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg-secondary);border-radius:4px">
+      <div style="flex:1">
+        <strong>{{ sheet_name }}</strong><br>
+        <small style="color:var(--text-muted)">Perfil: <code>{{ profile_code }}</code></small>
+      </div>
+      <i class="bi bi-check-circle" style="font-size:1.4em;color:var(--success)"></i>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state"><div class="es-icon"><i class="bi bi-inbox"></i></div><p>No se detectaron hojas reconocidas en el archivo.</p></div>
+  {% endif %}
+</div>
+
+<div class="flash flash-info"><i class="bi bi-lightbulb"></i>
+  <span>Las hojas se procesarán en este orden: <strong>Sedes → Coordinadores → Tutores → Internos → Rotaciones</strong>. Las hojas no listadas se ignorarán.</span></div>
+
+<div style="display:flex;gap:8px;margin-top:16px">
+  <form method="post" action="/imports/{{ batch.id }}/multi-validate" style="flex:1">
+    {{ csrf_field(csrf_token) }}
+    <button class="btn btn-primary" type="submit" style="width:100%"><i class="bi bi-check-circle"></i> Validar todas las hojas</button>
+  </form>
+  <a class="btn btn-light" href="/imports/{{ batch.id }}/cancel" style="flex:0"><i class="bi bi-x-circle"></i> Cancelar</a>
+</div>
+{% endblock %}

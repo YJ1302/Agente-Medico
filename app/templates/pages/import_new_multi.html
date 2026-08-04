@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import csrf_field %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="page-head"><h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1>
+  <p>Suba un archivo Excel con múltiples hojas (Sedes, Coordinadores, Tutores, Internos, Rotaciones). El sistema las detectará automáticamente y las procesará en orden.</p></div>
+
+<nav class="breadcrumbs" style="margin-bottom:12px">
+  <a href="/imports">Centro de Importación</a> <i class="bi bi-chevron-right"></i> <span>Importación masiva</span>
+</nav>
+
+<div class="card" style="margin-bottom:16px">
+  <div class="card-head"><h3><i class="bi bi-list-check"></i> Hojas reconocidas</h3></div>
+  <p style="margin:0;color:var(--text-muted);font-size:.9em">El archivo puede contener estas hojas (se detectan automáticamente):</p>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+    <span class="chip chip-info"><i class="bi bi-building"></i> Sedes</span>
+    <span class="chip chip-info"><i class="bi bi-person-badge"></i> Coordinadores</span>
+    <span class="chip chip-info"><i class="bi bi-person-check"></i> Tutores</span>
+    <span class="chip chip-info"><i class="bi bi-person-fill"></i> Internos</span>
+    <span class="chip chip-info"><i class="bi bi-arrow-repeat"></i> Rotaciones</span>
+  </div>
+  <p style="margin:8px 0 0;color:var(--text-muted);font-size:.9em">Las hojas se importarán en este orden: Sedes → Coordinadores → Tutores → Internos → Rotaciones.</p>
+</div>
+
+<form method="post" action="/imports" enctype="multipart/form-data" class="card">
+  {{ csrf_field(csrf_token) }}
+  <input type="hidden" name="multi" value="1">
+  <input type="hidden" name="profile" value="multi_sheet">
+
+  <div class="form-group">
+    <label>Archivo Excel <span class="req">*</span></label>
+    <input class="form-control" type="file" name="file" accept=".xlsx,.xlsm" required>
+    <small class="form-help">Descargue la plantilla si aún no la tiene. El archivo debe contener las hojas con datos reales.</small>
+  </div>
+
+  <div class="flash flash-info"><i class="bi bi-info-circle"></i>
+    <span>Solo se admiten archivos .xlsx y .xlsm. El archivo se valida antes de procesarse y se elimina tras la importación.</span></div>
+
+  <div class="flash flash-warning"><i class="bi bi-exclamation-triangle"></i>
+    <span>La importación será <strong>transaccional</strong>: todos los datos se importan juntos o ninguno. Si hay errores críticos, se detendrá el proceso.</span></div>
+
+  <div class="form-actions">
+    <button class="btn btn-primary" type="submit"><i class="bi bi-upload"></i> Subir y detectar hojas</button>
+    <a class="btn btn-light" href="/imports">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

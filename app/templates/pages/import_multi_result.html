@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import csrf_field %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% set st_tone = {'valid':'success','warning':'warning','error':'danger'} %}
+{% set st_label = {'valid':'Válido','warning':'Advertencia','error':'Error'} %}
+
+{% block content %}
+<div class="page-head"><h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1>
+  <p>Resultados de validación de todas las hojas. Revise los errores antes de confirmar la importación.</p></div>
+
+<nav class="breadcrumbs" style="margin-bottom:12px">
+  <a href="/imports">Centro de Importación</a> <i class="bi bi-chevron-right"></i> <span>{{ batch.code }}</span>
+</nav>
+
+<div class="card" style="margin-bottom:16px">
+  <div class="card-head"><h3><i class="bi bi-bar-chart"></i> Resumen general</h3></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
+    <div style="text-align:center;padding:12px;background:var(--bg-light-success);border-radius:4px">
+      <div style="font-size:1.8em;font-weight:bold;color:var(--success)">{{ batch.valid_rows }}</div>
+      <small style="color:var(--text-muted)">Filas válidas</small>
+    </div>
+    <div style="text-align:center;padding:12px;background:var(--bg-light-warning);border-radius:4px">
+      <div style="font-size:1.8em;font-weight:bold;color:var(--warning)">{{ batch.warning_rows }}</div>
+      <small style="color:var(--text-muted)">Advertencias</small>
+    </div>
+    <div style="text-align:center;padding:12px;background:var(--bg-light-danger);border-radius:4px">
+      <div style="font-size:1.8em;font-weight:bold;color:var(--danger)">{{ batch.error_rows }}</div>
+      <small style="color:var(--text-muted)">Errores</small>
+    </div>
+    <div style="text-align:center;padding:12px;background:var(--bg-secondary);border-radius:4px">
+      <div style="font-size:1.8em;font-weight:bold">{{ batch.total_rows }}</div>
+      <small style="color:var(--text-muted)">Total de filas</small>
+    </div>
+  </div>
+</div>
+
+{% for sheet_name, sheet_data in by_sheet.items() %}
+<div class="card" style="margin-bottom:16px">
+  <div class="card-head" style="display:flex;justify-content:space-between;align-items:center">
+    <h3><i class="bi bi-table"></i> {{ sheet_name }}</h3>
+    <div style="display:flex;gap:6px">
+      <span class="chip chip-{{ st_tone.get('valid','muted') }}">{{ sheet_data.stats.valid }} válidas</span>
+      {% if sheet_data.stats.warning %}<span class="chip chip-{{ st_tone.get('warning','muted') }}">{{ sheet_data.stats.warning }} advertencias</span>{% endif %}
+      {% if sheet_data.stats.error %}<span class="chip chip-{{ st_tone.get('error','muted') }}">{{ sheet_data.stats.error }} errores</span>{% endif %}
+    </div>
+  </div>
+
+  {% set problem_rows = sheet_data.rows|selectattr('status', 'ne', 'valid')|list %}
+  {% if problem_rows %}
+  <div class="table-scroll"><table class="data">
+    <thead><tr><th>Fila</th><th>Estado</th><th>Campo</th><th>Mensaje</th></tr></thead>
+    <tbody>
+      {% for row in problem_rows %}
+      <tr>
+        <td><strong>#{{ row.row_number }}</strong></td>
+        <td><span class="chip chip-{{ st_tone.get(row.status, 'muted') }}">{{ st_label.get(row.status, row.status) }}</span></td>
+        <td>
+          {% set msgs = row.messages %}
+          {% if msgs %}
+            {% set fields = msgs|map(attribute='field')|unique|list %}
+            <code>{{ fields|join(', ') }}</code>
+          {% else %}
+            —
+          {% endif %}
+        </td>
+        <td>
+          {% if row.messages %}
+            {% for msg in row.messages %}
+            <div style="margin:2px 0;font-size:.9em">{{ msg.message }}</div>
+            {% endfor %}
+          {% else %}
+            —
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}
+  <div style="padding:16px;text-align:center;color:var(--text-muted)"><i class="bi bi-check-circle" style="font-size:1.4em;color:var(--success);margin-bottom:8px"></i><br>Todas las filas son válidas.</div>
+  {% endif %}
+</div>
+{% endfor %}
+
+{% if batch.error_rows > 0 %}
+<div class="flash flash-danger"><i class="bi bi-exclamation-triangle"></i>
+  <span>Hay <strong>{{ batch.error_rows }} error(es)</strong> que impiden la importación. Corrija los datos y vuelva a intentar.</span></div>
+{% else %}
+<div class="flash flash-success"><i class="bi bi-check-circle"></i>
+  <span>No hay errores. Puede proceder a confirmar la importación.</span></div>
+{% endif %}
+
+<div style="display:flex;gap:8px;margin-top:16px">
+  {% if batch.error_rows == 0 %}
+  <form method="post" action="/imports/{{ batch.id }}/multi-confirm" style="flex:1">
+    {{ csrf_field(csrf_token) }}
+    <button class="btn btn-success" type="submit" style="width:100%"><i class="bi bi-cloud-upload"></i> Confirmar e importar</button>
+  </form>
+  {% endif %}
+  <a class="btn btn-light" href="/imports/{{ batch.id }}/cancel" style="flex:0"><i class="bi bi-x-circle"></i> Cancelar</a>
+</div>
+{% endblock %}

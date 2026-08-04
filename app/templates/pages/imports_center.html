@@ -10,8 +10,14 @@
 <div class="flash flash-info" style="margin-bottom:16px"><i class="bi bi-shield-check"></i>
   <span>Ningún archivo se importa automáticamente. Cada importación pasa por validación y una confirmación humana explícita.</span></div>
 
+<div class="card" style="margin-bottom:18px;border-left:4px solid var(--success);background:var(--bg-light-success)">
+  <div class="card-head"><h3><i class="bi bi-table"></i> Importación masiva de múltiples hojas (Plantilla)</h3></div>
+  <p style="margin:0 0 12px 0;color:var(--text-muted)">Sube un archivo Excel con múltiples hojas (Sedes, Coordinadores, Tutores, Internos, Rotaciones) y todos se procesarán en orden automáticamente.</p>
+  <a class="btn btn-primary" href="/imports/new?multi=1"><i class="bi bi-cloud-upload"></i> Importar plantilla completa</a>
+</div>
+
 <div class="card" style="margin-bottom:18px">
-  <div class="card-head"><h3><i class="bi bi-collection"></i> Perfiles de importación</h3></div>
+  <div class="card-head"><h3><i class="bi bi-collection"></i> Perfiles individuales (una hoja a la vez)</h3></div>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px">
     {% for p in profiles %}
     <a class="card" style="text-decoration:none;display:block" href="/imports/new?profile={{ p.code }}">

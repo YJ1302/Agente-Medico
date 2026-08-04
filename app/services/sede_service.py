@@ -20,8 +20,8 @@ from app.services.audit_service import AuditService
 from app.services.auth_service import Identity
 from app.services.validators import FieldValidator, ValidationError
 
-VALID_SEDE_TYPES = {"hospital", "health_center"}
-SEDE_TYPE_LABELS = {"hospital": "Hospital", "health_center": "Centro de salud"}
+VALID_SEDE_TYPES = {"hospital", "health_center", "clinic"}
+SEDE_TYPE_LABELS = {"hospital": "Hospital", "health_center": "Centro de salud", "clinic": "Clínica"}
 
 
 class SedeService:
@@ -254,5 +254,6 @@ class SedeService:
         return {
             "institutions": [(i.id, i.name) for i in self.repos.institution_types.list()],
             "institution_codes": [(c.value, c.value) for c in InstitutionCode],
-            "sede_types": [("hospital", "Hospital"), ("health_center", "Centro de salud")],
+            "sede_types": [("hospital", "Hospital"), ("health_center", "Centro de salud"),
+                          ("clinic", "Clínica")],
         }

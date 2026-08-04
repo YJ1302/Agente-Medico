@@ -197,7 +197,11 @@ def seed(reset: bool = False) -> None:  # noqa: C901 - linear seed reads clearer
         essalud = InstitutionType(code="ESSALUD", name="Seguro Social de Salud (EsSalud)",
                                   placement_method="examen", has_community_component=False,
                                   description="Asignación por resultados de examen.")
-        db.add_all([minsa, essalud])
+        privada = InstitutionType(code="PRIVADA", name="Institución Privada",
+                                  placement_method="convenio", has_community_component=False,
+                                  description="Clínicas y hospitales privados o convenios "
+                                              "internacionales (sin componente comunitario).")
+        db.add_all([minsa, essalud, privada])
         db.flush()
 
         # -- Sedes (fictional but realistic teaching sites) --------------

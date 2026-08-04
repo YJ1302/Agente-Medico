@@ -35,6 +35,7 @@
         <option value="">Todos</option>
         <option value="hospital" {% if filters.sede_type=='hospital' %}selected{% endif %}>Hospital</option>
         <option value="health_center" {% if filters.sede_type=='health_center' %}selected{% endif %}>Centro de salud</option>
+        <option value="clinic" {% if filters.sede_type=='clinic' %}selected{% endif %}>Clínica</option>
       </select>
     </div>
     <div class="filter-item">
@@ -69,8 +70,8 @@
         {% for s in page.items %}
         <tr>
           <td><strong>{{ s.short_name or s.name }}</strong><br><small style="color:var(--text-muted)">{{ s.name }}</small></td>
-          <td><span class="chip chip-{{ 'info' if s.institution_type.code=='MINSA' else 'success' }}">{{ s.institution_type.code }}</span></td>
-          <td>{{ 'Hospital' if s.sede_type=='hospital' else 'Centro de salud' }}</td>
+          <td><span class="chip chip-{{ 'info' if s.institution_type.code=='MINSA' else ('success' if s.institution_type.code=='ESSALUD' else 'warning') }}">{{ s.institution_type.code }}</span></td>
+          <td>{{ {'hospital': 'Hospital', 'health_center': 'Centro de salud', 'clinic': 'Clínica'}.get(s.sede_type, s.sede_type) }}</td>
           <td>{{ s.city or '—' }}</td>
           <td>
             {% if coord_map.get(s.id) %}{{ coord_map[s.id].user.full_name }}
