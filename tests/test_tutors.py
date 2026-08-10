@@ -2,8 +2,14 @@
 
 from __future__ import annotations
 
+from app.database import SessionLocal
+from app.repositories.repositories import RepositoryBundle
 from app.services.staff_service import compute_workload
 from tests.conftest import csrf_token
+
+
+def _repos(db=None):
+    return RepositoryBundle(db or SessionLocal())
 
 
 def _create(client, overrides):
@@ -69,5 +75,17 @@ def test_tutor_cannot_access_management_list(student_client):
 def test_tutor_can_view_own_detail(tutor_client):
     # tutor@ is tutor profile id 1; own detail must be viewable.
     assert tutor_client.get("/tutors/1").status_code == 200
-    # But another tutor's detail is denied.
-    assert tutor_client.get("/tutors/5").status_code == 403
+
+
+def test_tutor_sees_own_sede_peers_not_other_sede(tutor_client):
+    """A tutor may view (read-only) any tutor at their own sede — not just
+    themselves — but still not one at a different sede. See
+    authorization.tutor_sede_ids / staff_service.TutorService.can_view."""
+    r = _repos()
+    me_user = r.users.get_by_email("tutor@internado360.demo")
+    me = next(t for t in r.tutors.active() if t.user_id == me_user.id)
+    same_sede_peer = next(
+        t for t in r.tutors.active() if t.sede_id == me.sede_id and t.id != me.id)
+    other_sede_tutor = next(t for t in r.tutors.active() if t.sede_id != me.sede_id)
+    assert tutor_client.get(f"/tutors/{same_sede_peer.id}").status_code == 200
+    assert tutor_client.get(f"/tutors/{other_sede_tutor.id}").status_code == 403

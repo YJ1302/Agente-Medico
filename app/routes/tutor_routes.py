@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
-from app.authorization import Forbidden, require_management
+from app.authorization import Forbidden, require_management, require_staff
 from app.csrf import csrf_protect
 from app.database import get_db
 from app.dependencies import Identity, require_identity
@@ -26,7 +26,7 @@ async def _form(request: Request) -> dict:
 
 
 @router.get("/tutors")
-def list_tutors(request: Request, identity: Identity = Depends(require_management),
+def list_tutors(request: Request, identity: Identity = Depends(require_staff),
                 db: Session = Depends(get_db),
                 q: str = "", sede: str = "", service: str = "", active: str = "",
                 assignments: str = "", workload: str = "", page: int = 1):

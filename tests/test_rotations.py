@@ -269,10 +269,20 @@ def test_student_sees_only_own_assignments(student_client):
     assert student_client.get("/rotations/2").status_code in (403, 404)
 
 
-def test_tutor_sees_only_assigned(tutor_client):
+def test_tutor_sees_own_sede_not_other_sede(tutor_client):
+    """A tutor sees any assignment at their own sede (not just their own
+    caseload — see authorization.tutor_sede_ids), but still not another
+    sede's, even one belonging to a different tutor there."""
     r = _repos()
-    other = next(a for a in r.assignments.all_with_relations() if a.tutor_id not in (1, None))
-    assert tutor_client.get(f"/rotations/{other.id}").status_code == 403
+    me_user = r.users.get_by_email("tutor@internado360.demo")
+    me = next(t for t in r.tutors.active() if t.user_id == me_user.id)
+    same_sede_other_tutor = next(
+        a for a in r.assignments.all_with_relations()
+        if a.sede_id == me.sede_id and a.tutor_id not in (me.id, None))
+    other_sede = next(
+        a for a in r.assignments.all_with_relations() if a.sede_id != me.sede_id)
+    assert tutor_client.get(f"/rotations/{same_sede_other_tutor.id}").status_code == 200
+    assert tutor_client.get(f"/rotations/{other_sede.id}").status_code == 403
 
 
 # --- CSRF / GET mutation ---------------------------------------------------

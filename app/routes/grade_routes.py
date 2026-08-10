@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
-from app.authorization import ensure, require_admin_or_university
+from app.authorization import ensure, require_admin_or_university, require_management
 from app.csrf import csrf_protect
 from app.database import get_db
 from app.dependencies import Identity
@@ -26,7 +26,7 @@ router = APIRouter(tags=["grades"])
 
 @router.get("/grades")
 def grades_list(request: Request,
-                identity: Identity = Depends(require_admin_or_university),
+                identity: Identity = Depends(require_management),
                 db: Session = Depends(get_db)):
     svc = GradeService(db, identity)
     return render(request, "pages/grades_list.html", identity=identity,
@@ -60,7 +60,7 @@ def cross_sheet_check(request: Request,
 
 @router.get("/grades/{scheme_id}")
 def grade_scheme_detail(scheme_id: int, request: Request,
-                        identity: Identity = Depends(require_admin_or_university),
+                        identity: Identity = Depends(require_management),
                         db: Session = Depends(get_db)):
     svc = GradeService(db, identity)
     data = svc.build_matrix(scheme_id)
@@ -71,7 +71,7 @@ def grade_scheme_detail(scheme_id: int, request: Request,
 
 @router.post("/grades/component/{sgc_id}/approve")
 async def approve_component(sgc_id: int, request: Request,
-                            identity: Identity = Depends(require_admin_or_university),
+                            identity: Identity = Depends(require_management),
                             db: Session = Depends(get_db), _: None = Depends(csrf_protect)):
     svc = GradeService(db, identity)
     sgc = svc.approve_component(sgc_id, ip=client_ip(request))

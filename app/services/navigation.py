@@ -64,7 +64,7 @@ NAV_SECTIONS: list[NavSection] = [
                 "Tutores",
                 "/tutors",
                 "people",
-                roles={ROLE_ADMIN, ROLE_UNIVERSITY_COORDINATOR, ROLE_SEDE_COORDINATOR},
+                roles={ROLE_ADMIN, ROLE_UNIVERSITY_COORDINATOR, ROLE_SEDE_COORDINATOR, ROLE_TUTOR},
             ),
             NavItem("Rotaciones", "/rotations", "arrow-repeat"),
             NavItem("Catálogo de Actividades", "/activities", "clipboard-check"),
@@ -80,13 +80,14 @@ NAV_SECTIONS: list[NavSection] = [
     NavSection(
         "GESTIÓN INSTITUCIONAL",
         [
+            NavItem("Comunicados", "/announcements", "megaphone"),
             NavItem("Documentos", "/documents", "file-earmark-text"),
             NavItem("Incidencias", "/incidents", "exclamation-triangle"),
             NavItem("Reportes", "/reports", "bar-chart"),
             NavItem("Importación", "/imports", "upload",
                     roles={ROLE_ADMIN, ROLE_UNIVERSITY_COORDINATOR, ROLE_SEDE_COORDINATOR}),
             NavItem("Notas académicas", "/grades", "123",
-                    roles={ROLE_ADMIN, ROLE_UNIVERSITY_COORDINATOR}),
+                    roles={ROLE_ADMIN, ROLE_UNIVERSITY_COORDINATOR, ROLE_SEDE_COORDINATOR}),
         ],
     ),
     NavSection(

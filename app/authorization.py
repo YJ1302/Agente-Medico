@@ -103,7 +103,7 @@ def is_global_viewer(identity: Identity) -> bool:
 # ``RepositoryBundle`` (imported lazily to avoid a cycle) and answer a simple
 # yes/no. Services must call them before returning or mutating a specific row.
 # ---------------------------------------------------------------------------
-def _sede_ids_for_coordinator(identity: Identity, repos) -> set[int]:
+def coordinator_sede_ids(identity: Identity, repos) -> set[int]:
     """Sede ids the given sede-coordinator identity coordinates."""
     ids: set[int] = set()
     for c in repos.sede_coordinators.active():
@@ -112,9 +112,14 @@ def _sede_ids_for_coordinator(identity: Identity, repos) -> set[int]:
     return ids
 
 
-def _tutor_profile_ids(identity: Identity, repos) -> set[int]:
-    """Tutor-profile ids belonging to the given tutor identity."""
-    return {t.id for t in repos.tutors.active() if t.user_id == identity.user_id}
+def tutor_sede_ids(identity: Identity, repos) -> set[int]:
+    """Sede id(s) of the tutor profile(s) belonging to the given tutor
+    identity. A tutor has exactly one profile/sede in practice (unique
+    user_id), but this returns a set for consistency with the coordinator
+    equivalent. Exported (no leading underscore) so other services can reuse
+    it — several already had their own narrower "only my own assignments"
+    tutor scoping that didn't match the sede-wide visibility tutors need."""
+    return {t.sede_id for t in repos.tutors.active() if t.user_id == identity.user_id}
 
 
 def can_view_student(identity: Identity, student, repos) -> bool:
@@ -122,12 +127,12 @@ def can_view_student(identity: Identity, student, repos) -> bool:
     if is_global_viewer(identity):
         return True
     if identity.role_code == ROLE_SEDE_COORDINATOR:
-        return student.sede_id in _sede_ids_for_coordinator(identity, repos)
+        return student.sede_id in coordinator_sede_ids(identity, repos)
     if identity.role_code == ROLE_TUTOR:
-        tutor_ids = _tutor_profile_ids(identity, repos)
-        return any(
-            a.tutor_id in tutor_ids for a in getattr(student, "rotation_assignments", [])
-        )
+        # Sede-wide, not just students personally assigned to this tutor —
+        # tutors need to see all interns at their sede (USER_ROLES_AND_
+        # PERMISSIONS.md), not only their own caseload.
+        return student.sede_id in tutor_sede_ids(identity, repos)
     if identity.role_code == ROLE_STUDENT:
         return student.user_id == identity.user_id
     return False
@@ -138,7 +143,7 @@ def can_edit_student(identity: Identity, student, repos) -> bool:
     if is_global_viewer(identity):
         return True
     if identity.role_code == ROLE_SEDE_COORDINATOR:
-        return student.sede_id in _sede_ids_for_coordinator(identity, repos)
+        return student.sede_id in coordinator_sede_ids(identity, repos)
     return False
 
 
@@ -146,7 +151,7 @@ def can_view_sede(identity: Identity, sede, repos) -> bool:
     if is_global_viewer(identity):
         return True
     if identity.role_code == ROLE_SEDE_COORDINATOR:
-        return sede.id in _sede_ids_for_coordinator(identity, repos)
+        return sede.id in coordinator_sede_ids(identity, repos)
     # Tutors/students may read a sede tied to their assignment; permissive read.
     return True
 
@@ -155,9 +160,10 @@ def can_view_assignment(identity: Identity, assignment, repos) -> bool:
     if is_global_viewer(identity):
         return True
     if identity.role_code == ROLE_SEDE_COORDINATOR:
-        return assignment.sede_id in _sede_ids_for_coordinator(identity, repos)
+        return assignment.sede_id in coordinator_sede_ids(identity, repos)
     if identity.role_code == ROLE_TUTOR:
-        return assignment.tutor_id in _tutor_profile_ids(identity, repos)
+        # Sede-wide — see can_view_student.
+        return assignment.sede_id in tutor_sede_ids(identity, repos)
     if identity.role_code == ROLE_STUDENT:
         return assignment.student and assignment.student.user_id == identity.user_id
     return False

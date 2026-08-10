@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.academic import AcademicPeriod, RotationAssignment, RotationType
 from app.models.activity import ActivityDefinition, ActivityReview, StudentActivity
+from app.models.announcement import Announcement
 from app.models.audit import AgentExecution, AuditLog
 from app.models.base import (
     AlertStatus,
@@ -839,6 +840,21 @@ class AlertRepository(BaseRepository[Alert]):
         return int(self.db.execute(stmt).scalar_one()) > 0
 
 
+class AnnouncementRepository(BaseRepository[Announcement]):
+    model = Announcement
+
+    def visible_to(self, sede_ids: set[int] | None) -> list[Announcement]:
+        """Announcements visible to a scope: institution-wide (sede_id is
+        null) plus any matching ``sede_ids``. ``None`` means unrestricted
+        (admin/university) — every announcement, any sede."""
+        conds = [Announcement.is_deleted.is_(False)]
+        if sede_ids is not None:
+            in_scope = Announcement.sede_id.in_(sede_ids) if sede_ids else False
+            conds.append(Announcement.sede_id.is_(None) | in_scope)
+        stmt = select(Announcement).where(and_(*conds)).order_by(Announcement.created_at.desc())
+        return list(self.db.execute(stmt).scalars().all())
+
+
 class DocumentRepository(BaseRepository[DocumentRecord]):
     model = DocumentRecord
 
@@ -1226,6 +1242,7 @@ class RepositoryBundle:
         self.activity_reviews = ActivityReviewRepository(db)
         self.evaluations = EvaluationRepository(db)
         self.alerts = AlertRepository(db)
+        self.announcements = AnnouncementRepository(db)
         self.documents = DocumentRepository(db)
         self.incidents = IncidentRepository(db)
         self.attachments = AttachmentRepository(db)

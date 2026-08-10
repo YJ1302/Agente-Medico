@@ -30,6 +30,7 @@ LOGOUT = "logout"
 CREATE_STUDENT = "create_student"
 UPDATE_STUDENT = "update_student"
 DEACTIVATE_STUDENT = "deactivate_student"
+PROVISION_STUDENT_ACCOUNT = "provision_student_account"
 CREATE_SEDE = "create_sede"
 UPDATE_SEDE = "update_sede"
 DEACTIVATE_SEDE = "deactivate_sede"
@@ -137,6 +138,9 @@ DOWNLOAD_IMPORT_ERROR_REPORT = "download_import_error_report"
 DOWNLOAD_IMPORT_CREDENTIALS = "download_import_credentials"
 IMPORT_GRADE_COMPONENT = "import_grade_component"
 UPDATE_GRADE_COMPONENT_FROM_IMPORT = "update_grade_component_from_import"
+
+# Comunicados (announcements).
+CREATE_ANNOUNCEMENT = "create_announcement"
 
 # Phase 3A — AI Coordinator Assistant.
 AI_ASSISTANT_QUERY = "ai_assistant_query"

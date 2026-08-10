@@ -16,7 +16,7 @@ import json
 
 from sqlalchemy.orm import Session
 
-from app.authorization import ensure, is_admin, is_global_viewer
+from app.authorization import coordinator_sede_ids, ensure, is_admin, is_global_viewer
 from app.models.base import GradeComponentStatus, utcnow
 from app.models.grades import GradeComponentHistory, StudentGradeComponent
 from app.models.user import ROLE_SEDE_COORDINATOR, ROLE_STUDENT
@@ -287,7 +287,19 @@ class GradeService:
         self.audit = AuditService(db)
 
     def can_manage(self) -> bool:
+        """Scheme/component structure and bulk import — stays admin/university
+        only. Viewing and approving are governed separately below so a sede
+        coordinator can give their VB without gaining scheme-editing power."""
         return is_global_viewer(self.identity)
+
+    def _scope_sede_ids(self) -> set[int] | None:
+        """Sede ids the identity is limited to for viewing/approving, or
+        None for unrestricted (admin/university)."""
+        if is_global_viewer(self.identity):
+            return None
+        if self.identity.role_code == ROLE_SEDE_COORDINATOR:
+            return coordinator_sede_ids(self.identity, self.repos)
+        return set()
 
     def list_schemes(self):
         return self.repos.grade_schemes.active()
@@ -312,10 +324,11 @@ class GradeService:
         by_student: dict[int, dict[int, StudentGradeComponent]] = {}
         for sgc in rows:
             by_student.setdefault(sgc.student_id, {})[sgc.component_id] = sgc
+        scope = self._scope_sede_ids()
         students = []
         for sid in by_student:
             st = self.repos.students.get(sid)
-            if st:
+            if st and (scope is None or st.sede_id in scope):
                 students.append(st)
         students.sort(key=lambda s: s.full_name)
         return {
@@ -323,10 +336,21 @@ class GradeService:
             "cells": by_student, "final_note": self.final_grade_note(scheme),
         }
 
+    def can_approve(self, sgc: StudentGradeComponent) -> bool:
+        """Admin/university may approve any component; a sede coordinator
+        only for students at their own sede (their VB, not a system-wide
+        one)."""
+        if self.can_manage():
+            return True
+        if self.identity.role_code != ROLE_SEDE_COORDINATOR:
+            return False
+        student = self.repos.students.get(sgc.student_id)
+        return bool(student) and student.sede_id in coordinator_sede_ids(self.identity, self.repos)
+
     def approve_component(self, sgc_id: int, ip: str | None = None):
-        ensure(self.can_manage(), "No puede aprobar notas.", "approve_grade_denied")
         sgc = self.repos.student_grades.get(sgc_id)
         ensure(sgc is not None, "Componente no encontrado.", "not_found")
+        ensure(self.can_approve(sgc), "No puede aprobar esta nota.", "approve_grade_denied")
         old_status = sgc.status
         sgc.status = GradeComponentStatus.APPROVED.value
         sgc.approved_by_user_id = self.identity.user_id

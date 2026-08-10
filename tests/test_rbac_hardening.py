@@ -90,6 +90,24 @@ def _a_student_id_not_assigned_to_tutor(email: str) -> int:
         db.close()
 
 
+def _a_student_id_at_different_sede_than_tutor(email: str) -> int:
+    """Unlike ``_a_student_id_not_assigned_to_tutor``, this guarantees a
+    genuinely out-of-scope student for view checks — a tutor now sees any
+    student at their own sede (see authorization.tutor_sede_ids), not just
+    their personal caseload, so "not personally assigned" alone no longer
+    implies "not visible"."""
+    db, repos = _repos()
+    try:
+        user = repos.users.get_by_email(email)
+        tutor = repos.tutors.get_by_user(user.id)
+        for s in repos.students.active():
+            if s.sede_id != tutor.sede_id:
+                return s.id
+        raise AssertionError("No other-sede student found")
+    finally:
+        db.close()
+
+
 def _student_own_id(email: str) -> int:
     db, repos = _repos()
     try:
@@ -215,10 +233,14 @@ def test_import_access_matrix(admin, university_client, sede_client, tutor_clien
 
 
 # ---------------------------------------------------------------------------
-# Grade scheme access matrix (Sede Coordinator never sees the raw matrix).
+# Grade scheme access matrix (Sede Coordinator sees only their own sede's
+# students in the matrix — see GradeService._scope_sede_ids; Tutor and
+# Student never reach the raw matrix at all).
 # ---------------------------------------------------------------------------
-def test_grade_matrix_blocked_for_sede_tutor_student(sede_client, tutor_client, student_client):
-    for client in (sede_client, tutor_client, student_client):
+def test_grade_matrix_scoped_for_sede_blocked_for_tutor_student(
+        sede_client, tutor_client, student_client):
+    assert sede_client.get("/grades", follow_redirects=False).status_code == 200
+    for client in (tutor_client, student_client):
         assert client.get("/grades", follow_redirects=False).status_code == 403
 
 
@@ -275,8 +297,8 @@ def test_sede_coordinator_cannot_create_document_for_another_sede(sede_client):
 # ---------------------------------------------------------------------------
 # Direct URL access / IDOR — cross-tutor.
 # ---------------------------------------------------------------------------
-def test_tutor_cannot_view_unassigned_students_rotation(tutor_client):
-    other_student = _a_student_id_not_assigned_to_tutor("tutor@internado360.demo")
+def test_tutor_cannot_view_other_sede_students_rotation(tutor_client):
+    other_student = _a_student_id_at_different_sede_than_tutor("tutor@internado360.demo")
     db, repos = _repos()
     try:
         assignment = next((a for a in repos.assignments.all_with_relations()

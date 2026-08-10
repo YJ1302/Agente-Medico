@@ -149,6 +149,23 @@ async def update_student(student_id: int, request: Request,
     return RedirectResponse(url=f"/students/{student_id}", status_code=303)
 
 
+@router.post("/students/{student_id}/provision-account")
+def provision_account(student_id: int, request: Request,
+                      identity: Identity = Depends(require_identity),
+                      db: Session = Depends(get_db), _: None = Depends(csrf_protect)):
+    service = StudentService(db, identity)
+    try:
+        user, generated = service.provision_account(student_id, ip=client_ip(request))
+    except ValidationError as e:
+        flash(request, list(e.errors.values())[0], "danger")
+        return RedirectResponse(url=f"/students/{student_id}", status_code=303)
+    msg = f"Cuenta creada para «{user.full_name}» ({user.email})."
+    if generated:
+        msg += f" Contraseña temporal: {generated}"
+    flash(request, msg, FLASH_SUCCESS)
+    return RedirectResponse(url=f"/students/{student_id}", status_code=303)
+
+
 @router.post("/students/{student_id}/toggle")
 def toggle_student(student_id: int, request: Request,
                    identity: Identity = Depends(require_identity),

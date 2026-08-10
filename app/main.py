@@ -27,6 +27,7 @@ from app.logging_config import get_logger
 from app.routes import (
     activity_routes,
     agent_routes,
+    announcement_routes,
     assistant_routes,
     auth_routes,
     coordinator_routes,
@@ -76,6 +77,7 @@ def create_app() -> FastAPI:
 
     # Routers
     app.include_router(auth_routes.router)
+    app.include_router(announcement_routes.router)
     app.include_router(dashboard_routes.router)
     app.include_router(student_routes.router)
     app.include_router(sede_routes.router)

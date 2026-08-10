@@ -14,7 +14,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
-from app.authorization import ensure, is_admin, is_global_viewer
+from app.authorization import ensure, is_admin, is_global_viewer, tutor_sede_ids
 from app.config import settings
 from app.models.base import utcnow
 from app.models.organization import SedeCoordinatorProfile, TutorProfile
@@ -251,10 +251,11 @@ class TutorService(_StaffBase):
     def can_view(self, tutor: TutorProfile) -> bool:
         if is_global_viewer(self.identity):
             return True
-        # A tutor may view only their own profile (checked before sede scope,
-        # since _scope_sede_ids returns an empty set for the tutor role).
+        # A tutor may view any tutor at their own sede (checked before sede
+        # scope, since _scope_sede_ids returns an empty set for the tutor
+        # role — that method governs *management* scope, not read access).
         if self.identity.role_code == ROLE_TUTOR:
-            return tutor.user_id == self.identity.user_id
+            return tutor.sede_id in tutor_sede_ids(self.identity, self.repos)
         scope = self._scope_sede_ids()
         if scope is not None:  # sede coordinator
             return tutor.sede_id in scope
@@ -262,14 +263,14 @@ class TutorService(_StaffBase):
 
     def list_tutors(self, *, workload: str | None = None,
                     has_assignments: str | None = None, **filters) -> list[TutorProfile]:
-        scope = self._scope_sede_ids()
-        if scope is not None:
-            filters["sede_ids"] = scope
         if self.identity.role_code == ROLE_TUTOR:
-            filters["sede_ids"] = set()  # a tutor manages nobody; only sees self below
+            # Read-only, sede-wide (see can_view) — not the management scope.
+            filters["sede_ids"] = tutor_sede_ids(self.identity, self.repos) or {-1}
+        else:
+            scope = self._scope_sede_ids()
+            if scope is not None:
+                filters["sede_ids"] = scope
         tutors = self.repos.tutors.search(**filters)
-        if self.identity.role_code == ROLE_TUTOR:
-            tutors = [t for t in self.repos.tutors.active() if t.user_id == self.identity.user_id]
         rows = []
         for t in tutors:
             wl = compute_workload(self.repos.tutors.workload_count(t.id))

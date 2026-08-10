@@ -7,6 +7,7 @@ class exported here.
 
 from app.models.academic import AcademicPeriod, RotationAssignment, RotationType
 from app.models.activity import ActivityDefinition, ActivityReview, StudentActivity
+from app.models.announcement import Announcement
 from app.models.audit import AgentExecution, AuditLog
 from app.models.grades import (
     GradeComponentDefinition,
@@ -41,6 +42,7 @@ __all__ = [
     "ActivityDefinition",
     "ActivityReview",
     "StudentActivity",
+    "Announcement",
     "AgentExecution",
     "AuditLog",
     "GradeComponentDefinition",

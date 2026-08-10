@@ -30,10 +30,10 @@ enforce with write operations.
 | Module / Capability        | Admin | Univ. Coord. | Sede Coord. | Tutor | Student |
 |----------------------------|:-----:|:------------:|:-----------:|:-----:|:-------:|
 | Dashboard                  |  F    |  R           |  R (sede)   |  R (own) | R (own) |
-| Students                   |  F    |  R           |  S (sede)   |  S (assigned) | S (self) |
+| Students                   |  F    |  R           |  S (sede)   |  R (sede) | S (self) |
 | Sedes                      |  F    |  R           |  R (own)    |  R    | R |
-| Coordinators & Tutors      |  F    |  R           |  S (sede)   |  —    | — |
-| Rotations                  |  F    |  R           |  S (sede)   |  S (own) | S (self) |
+| Coordinators & Tutors      |  F    |  R           |  S (sede)   |  R (sede, tutors only) | — |
+| Rotations                  |  F    |  R           |  S (sede)   |  R (sede) | S (self) |
 | Activity monitoring        |  F    |  R           |  S (sede)   |  S (own students) | S (self) |
 | Evaluations                |  F    |  R           |  S (sede)   |  S (create own) | S (view own) |
 | Documents                  |  F    |  R/approve   |  S (create) |  —    | S (own) |
@@ -53,7 +53,12 @@ The sidebar is filtered per role in `app/services/navigation.py`:
 
 - **Users & Roles, System Settings, Audit Log** — Admin only.
 - **Agent Executions, Academic Periods** — Admin + University Coordinator.
-- **Coordinators & Tutors** — Admin + University + Sede Coordinator.
+- **Coordinadores de Sede** — Admin + University + Sede Coordinator.
+- **Tutores** — Admin + University + Sede Coordinator + Tutor (read-only, own sede).
+- **Notas académicas** — Admin + University + Sede Coordinator (own sede; view + approve
+  only, no scheme/import access).
+- **Comunicados** — visible to every authenticated role (read); sending one is
+  Admin/University/Sede Coordinator only.
 - All other items — visible to every authenticated role.
 
 ## Batch 2A scope (Sedes, Coordinators, Tutors) — enforced server-side
@@ -68,21 +73,28 @@ The sidebar is filtered per role in `app/services/navigation.py`:
 | Coordinator list / detail | F | R (all) | R (own sede) | — | — |
 | Create / edit / (de)activate coordinator | F | F | — | — | — |
 | Replace principal coordinator | F | F (confirm) | — | — | — |
-| Tutor list / detail | F | R (all) | R (own sede) | R (own only) | — |
+| Tutor list / detail | F | R (all) | R (own sede) | R (own sede) | — |
 | Create tutor / reassign / (de)activate | F | F | — | — | — |
 | Edit tutor contact/service fields | F | F | S (own sede) | — | — |
 | Force-deactivate tutor (has assignments) | F (reason) | — | — | — | — |
 
 Denied access returns **403** (or a safe redirect) and writes an
-`authorization_denied` audit entry. Students and tutors cannot reach the
+`authorization_denied` audit entry. Students cannot reach the
 coordinator/tutor management lists; a Sede Coordinator cannot open another
 sede's records by editing the URL.
+
+A Tutor may view (read-only) every tutor, student, and rotation at their own
+sede — not just their own caseload — so they can see who else covers their
+sede and get institutional context, per the platform's access model. They
+still cannot create, edit, or manage any of it; that stays Admin/University/
+Sede Coordinator only. A Tutor from a different sede gets the same 403 a
+Sede Coordinator would.
 
 ## Batch 2B scope (Rotation assignments) — enforced server-side
 
 | Capability | Admin | Univ. Coord. | Sede Coord. | Tutor | Student |
 |------------|:-----:|:------------:|:-----------:|:-----:|:-------:|
-| View assignments | all | all | own sede | own (assigned) | own |
+| View assignments | all | all | own sede | own sede | own |
 | Create / edit (planned) | F | F | own sede | — | — |
 | Assign / change / remove tutor | F | F | own sede | — | — |
 | Activate / complete / cancel | F | F | own sede | — | — |
@@ -197,9 +209,42 @@ Every unauthorized request returns 403 (or a safe redirect), writes an
   assigned students only — reserved for the next batch).
 - **Student**: no import access.
 
-- **Grade viewing** (`/grades`): Administrator and University Coordinator only.
-  Students never see the raw grade matrix.
+- **Grade viewing** (`/grades`): Administrator, University Coordinator, and
+  Sede Coordinator (own sede only — the matrix is filtered to their sede's
+  students; scheme/component structure and bulk import remain
+  Admin/University only). Students never see the raw grade matrix.
+- **Grade approval** (VB): Administrator and University Coordinator for any
+  component; Sede Coordinator only for a component belonging to a student at
+  their own sede — enforced server-side even against a direct POST, not just
+  hidden in the UI.
 - Every unauthorized import/grade request returns **403** and is audited.
+
+---
+
+## Comunicados (announcements)
+
+| Action | Admin | University | Sede Coord | Tutor | Student |
+|--------|:---:|:---:|:---:|:---:|:---:|
+| View | all (any sede + institution-wide) | all | own sede + institution-wide | own sede + institution-wide | own sede + institution-wide |
+| Send to own sede | ✔ | ✔ | ✔ (forced to own sede — cannot target another) | — | — |
+| Send institution-wide (no sede) | ✔ | ✔ | — | — | — |
+
+There is no per-recipient read tracking — an announcement is either in scope
+for a viewer or it isn't ("enviar comunicados a todos" is a broadcast, not a
+delivery receipt). A Sede Coordinator's submitted `sede_id` is always
+ignored server-side in favor of their own sede — confirmed by test: posting
+a different sede's id still creates the announcement scoped to their own
+sede. Every unauthorized send attempt returns **403**.
+
+## Student account provisioning
+
+A `Student` record can exist without a login (`user_id` is nullable — e.g.
+freshly bulk-imported). Admin, University Coordinator, and Sede Coordinator
+(own sede only) can create one from the student's detail page ("Crear
+cuenta"), the same one-time-temp-password pattern used for Coordinator/Tutor
+creation. Requires the student to already have an email on file; blocked
+with a clear error if they don't, if the email is already taken by another
+account, or if an account already exists for them (`user_id` is set).
 
 ---
 

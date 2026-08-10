@@ -12,7 +12,7 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
-from app.authorization import ensure, is_admin, is_global_viewer
+from app.authorization import ensure, is_admin, is_global_viewer, tutor_sede_ids
 from app.models.base import AssignmentStatus, InstitutionCode, utcnow
 from app.models.academic import RotationAssignment
 from app.models.user import (
@@ -64,10 +64,6 @@ class RotationService:
         self.conflicts = RotationConflictService(self.repos)
 
     # -- scope ------------------------------------------------------------
-    def _own_tutor_ids(self) -> set[int]:
-        return {t.id for t in self.repos.tutors.active()
-                if t.user_id == self.identity.user_id}
-
     def _own_sede_ids(self) -> set[int]:
         ids = set()
         for c in self.repos.sede_coordinators.active():
@@ -82,7 +78,9 @@ class RotationService:
                     if s.user_id == self.identity.user_id]
             filters["student_ids"] = {s.id for s in mine} or {-1}
         elif role == ROLE_TUTOR:
-            filters["tutor_ids"] = self._own_tutor_ids() or {-1}
+            # Sede-wide — see authorization.can_view_student for why tutors
+            # aren't limited to rotations personally assigned to them.
+            filters["sede_ids"] = tutor_sede_ids(self.identity, self.repos) or {-1}
         elif role == ROLE_SEDE_COORDINATOR:
             filters["sede_ids"] = self._own_sede_ids() or {-1}
         return self.repos.assignments.search(**filters)
@@ -94,7 +92,7 @@ class RotationService:
         if role == ROLE_SEDE_COORDINATOR:
             return a.sede_id in self._own_sede_ids()
         if role == ROLE_TUTOR:
-            return a.tutor_id in self._own_tutor_ids()
+            return a.sede_id in tutor_sede_ids(self.identity, self.repos)
         if role == ROLE_STUDENT:
             return a.student and a.student.user_id == self.identity.user_id
         return False

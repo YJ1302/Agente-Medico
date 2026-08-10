@@ -24,8 +24,18 @@ def test_student_cannot_view_another_student(student_client):
     assert student_client.get("/students/5").status_code == 403
 
 
-def test_tutor_cannot_view_unassigned_student(tutor_client):
-    # A high student id the tutor is not assigned to.
+def test_tutor_sees_own_sede_student_not_other_sede(tutor_client):
+    """A tutor sees any student at their own sede — not just their personal
+    caseload (see authorization.tutor_sede_ids) — but still not one at a
+    different sede. Student #12 is seeded at a different sede than
+    tutor@internado360.demo's own (sede 4 vs 1)."""
+    from app.database import SessionLocal
+    from app.repositories.repositories import RepositoryBundle
+    r = RepositoryBundle(SessionLocal())
+    me_user = r.users.get_by_email("tutor@internado360.demo")
+    me = next(t for t in r.tutors.active() if t.user_id == me_user.id)
+    same_sede_student = next(s for s in r.students.search(active=None) if s.sede_id == me.sede_id)
+    assert tutor_client.get(f"/students/{same_sede_student.id}").status_code == 200
     assert tutor_client.get("/students/12").status_code == 403
 
 

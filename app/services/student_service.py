@@ -6,6 +6,7 @@ scope (A), and writes audit entries (J). Routes are thin controllers over this.
 
 from __future__ import annotations
 
+import secrets
 from datetime import date
 
 from sqlalchemy.orm import Session
@@ -16,11 +17,14 @@ from app.authorization import (
     ensure,
     is_admin,
     is_global_viewer,
+    tutor_sede_ids,
 )
+from app.config import settings
 from app.models.base import InstitutionCode, StudentCycle
 from app.models.student import Student
-from app.models.user import ROLE_SEDE_COORDINATOR, ROLE_STUDENT, ROLE_TUTOR
+from app.models.user import ROLE_SEDE_COORDINATOR, ROLE_STUDENT, ROLE_TUTOR, User
 from app.repositories.repositories import RepositoryBundle
+from app.security import hash_password
 from app.services import audit_service as audit
 from app.services.audit_service import AuditService
 from app.services.auth_service import Identity
@@ -66,14 +70,10 @@ class StudentService:
             me = self.repos.students.search(active=None)
             return [s for s in me if s.user_id == self.identity.user_id]
         if role == ROLE_TUTOR:
-            tutor_ids = {t.id for t in self.repos.tutors.active()
-                         if t.user_id == self.identity.user_id}
-            student_ids = {
-                a.student_id for a in self.repos.assignments.all_with_relations()
-                if a.tutor_id in tutor_ids
-            }
-            results = self.repos.students.search(**filters)
-            return [s for s in results if s.id in student_ids]
+            # Sede-wide — see authorization.can_view_student for why tutors
+            # aren't limited to their own caseload here.
+            filters["sede_ids"] = tutor_sede_ids(self.identity, self.repos) or {-1}
+            return self.repos.students.search(**filters)
         # Admin / University see all; Sede Coordinator limited to their sede(s).
         scope = self._scope_sede_ids()
         if scope is not None:
@@ -130,6 +130,8 @@ class StudentService:
             "audit_rows": audit_rows,
             "can_edit": can_edit_student(self.identity, student, self.repos),
             "can_delete": is_admin(self.identity),
+            "can_provision_account": (student.user_id is None
+                                      and can_edit_student(self.identity, student, self.repos)),
         }
 
     # -- create / update --------------------------------------------------
@@ -246,6 +248,38 @@ class StudentService:
                           detail={"is_active": active}, ip_address=ip, commit=False)
         self.db.commit()
         return student
+
+    def provision_account(self, student_id: int, ip: str | None = None) -> tuple[User, str]:
+        """Create a login (User, role=student) for an existing Student record
+        and link it. Returns (user, generated_password) — the password is
+        shown once by the caller, exactly like the tutor/coordinator create
+        flow, and never logged or persisted in plaintext."""
+        student = self.repos.students.get_full(student_id)
+        ensure(student is not None, "Interno no encontrado.", "not_found")
+        ensure(can_edit_student(self.identity, student, self.repos),
+               "No puede administrar la cuenta de este interno.", "provision_account_denied")
+        if student.user_id:
+            raise ValidationError({"account": "Este interno ya tiene una cuenta."})
+        email = (student.email or "").strip()
+        if not email:
+            raise ValidationError({"account": "El interno no tiene un correo registrado. "
+                                              "Agregue uno editando el interno antes de crear la cuenta."})
+        if self.repos.users.get_by_email(email):
+            raise ValidationError({"account": f"El correo «{email}» ya está en uso por otra cuenta."})
+
+        role = self.repos.roles.get_by_code(ROLE_STUDENT)
+        ensure(role is not None, "Rol de interno no configurado.", "role_missing")
+        password = "Demo123!" if settings.demo_mode else secrets.token_urlsafe(9)
+        user = User(email=email, full_name=student.full_name, phone=student.phone,
+                   hashed_password=hash_password(password), role_id=role.id)
+        self.repos.users.add(user)
+        student.user_id = user.id
+        self.db.flush()
+        self.audit.record(audit.PROVISION_STUDENT_ACCOUNT, identity=self.identity,
+                          entity_type="student", entity_id=student.id,
+                          detail={"email": email}, ip_address=ip, commit=False)
+        self.db.commit()
+        return user, password
 
     def soft_delete(self, student_id: int, reason: str, ip: str | None = None) -> None:
         ensure(is_admin(self.identity), "Solo un administrador puede eliminar internos.",

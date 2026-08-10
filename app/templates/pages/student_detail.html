@@ -25,6 +25,17 @@
       </button>
     </form>
     {% endif %}
+    {% if can_provision_account %}
+    <form method="post" action="/students/{{ student.id }}/provision-account" style="display:inline">
+      {{ csrf_field(csrf_token) }}
+      <button class="btn btn-outline" type="submit"
+              onclick="return confirm('¿Crear una cuenta de acceso para este interno? Se mostrará una contraseña temporal una sola vez.')">
+        <i class="bi bi-person-plus"></i> Crear cuenta
+      </button>
+    </form>
+    {% elif student.user_id %}
+    <span class="chip chip-success"><i class="bi bi-check-circle"></i> Con cuenta</span>
+    {% endif %}
     {% if can_delete %}
     <button class="btn btn-outline no-print" style="color:var(--danger)"
             onclick="document.getElementById('delBox').style.display='block'">
