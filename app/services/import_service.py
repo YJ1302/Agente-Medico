@@ -535,6 +535,7 @@ class ImportService:
         all_results = []
         total_valid = total_warning = total_error = 0
         ctx = ImportContext(self.db, self.identity, sede_scope_ids=self._sede_scope(), batch=batch)
+        ctx.validating = True
 
         nested = self.db.begin_nested()
         try:

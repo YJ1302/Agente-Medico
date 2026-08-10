@@ -168,10 +168,15 @@ class RotationConflictService:
 
     # -- helpers ----------------------------------------------------------
     def _student_active_planned(self, student_id: int, exclude_id: int | None):
+        # Filter by student at the SQL level — the previous all_with_relations()
+        # scan reloaded and eager-joined every assignment in the whole system
+        # (with relations) on every single call, so cost grew with total
+        # rows in the DB rather than with this one student's history. That
+        # made bulk rotation imports (each row calls this twice) effectively
+        # O(rows_in_batch × rows_in_db), which is what turned a ~250-row
+        # import into a multi-second-per-row operation.
         rows = []
-        for a in self.repos.assignments.all_with_relations():
-            if a.student_id != student_id:
-                continue
+        for a in self.repos.assignments.search(student_id=student_id):
             if exclude_id and a.id == exclude_id:
                 continue
             if a.status in (AssignmentStatus.ACTIVE.value, AssignmentStatus.PLANNED.value):

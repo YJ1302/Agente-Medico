@@ -74,16 +74,24 @@ class _StaffBase:
             v.add("sede_id", "La sede debe existir y estar activa.")
 
     def _create_user(self, *, full_name: str, email: str, phone: str | None,
-                     role_code: str, password: str | None) -> tuple[User, str]:
-        """Create a hashed-password user account. Returns (user, generated_pwd?)."""
+                     role_code: str, password: str | None,
+                     skip_hash: bool = False) -> tuple[User, str]:
+        """Create a hashed-password user account. Returns (user, generated_pwd?).
+
+        ``skip_hash`` bypasses bcrypt (~250ms/call) for rows staged only to
+        validate a bulk import — they're flushed inside a SAVEPOINT that gets
+        rolled back, so the real hash is never needed and would otherwise
+        dominate validation time for imports creating many accounts.
+        """
         role = self.repos.roles.get_by_code(role_code)
         ensure(role is not None, "Rol no configurado.", "role_missing")
         generated = ""
         if not (password or "").strip():
             password = "Demo123!" if settings.demo_mode else secrets.token_urlsafe(9)
             generated = password
+        hashed = "$staged$" if skip_hash else hash_password(password)
         user = User(email=email, full_name=full_name, phone=phone,
-                    hashed_password=hash_password(password), role_id=role.id)
+                    hashed_password=hashed, role_id=role.id)
         self.repos.users.add(user)
         self.db.flush()
         return user, generated

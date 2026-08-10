@@ -140,6 +140,25 @@ def _already_seeded(db) -> bool:
     return db.query(User).count() > 0
 
 
+def _ensure_institution_types(db) -> None:
+    """Idempotent bootstrap for institution types added after initial seeding.
+
+    Runs unconditionally on every boot (unlike the rest of ``seed()``, which
+    skips once the database has users) so a value like PRIVADA reaches an
+    already-seeded environment (e.g. Render Free, which has no Shell access
+    to run a one-off script) on the next deploy.
+    """
+    if not db.query(InstitutionType).filter(InstitutionType.code == "PRIVADA").first():
+        db.add(InstitutionType(
+            code="PRIVADA", name="Institución Privada",
+            placement_method="convenio", has_community_component=False,
+            description="Clínicas y hospitales privados o convenios internacionales "
+                        "(sin componente comunitario).",
+        ))
+        db.commit()
+        logger.info("Institution type PRIVADA created.")
+
+
 def seed(reset: bool = False) -> None:  # noqa: C901 - linear seed reads clearer flat
     """Populate demo data.
 
@@ -160,6 +179,7 @@ def seed(reset: bool = False) -> None:  # noqa: C901 - linear seed reads clearer
             "Database already contains data — skipping seed. "
             "Use 'python -m app.seed --reset' to rebuild demo data."
         )
+        _ensure_institution_types(db)
         db.close()
         return
     try:

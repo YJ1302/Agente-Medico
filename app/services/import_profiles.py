@@ -129,6 +129,30 @@ class ImportContext:
         self.batch = batch          # set during validate/confirm (grade profile uses it)
         self.seen: dict = {}        # per-run dedup tracking (e.g. repeated students)
         self._svc_cache: dict = {}
+        # Per-batch lookup caches — a naive per-row query for institution/sede/
+        # rotation-type/period/tutor lookups turns an N-row import into
+        # thousands of round trips (each lookup re-queries a whole table,
+        # sometimes twice). That's slow even locally and times out against a
+        # networked Postgres on a resource-constrained host (e.g. Render
+        # Free). Reference tables (institution types, rotation types,
+        # periods) rarely change mid-import so they're loaded once; sedes and
+        # tutors can gain rows mid-batch (an earlier sheet creating them), so
+        # their caches are invalidated on create instead.
+        self._institution_cache: list | None = None
+        self._rotation_type_cache: list | None = None
+        self._period_cache: list | None = None
+        self._sede_cache: list | None = None
+        self._tutor_cache: list | None = None
+        # True only while staging rows for cross-sheet validation (see
+        # validate_multi_sheet_batch) — lets user-creating profiles skip the
+        # real bcrypt hash for accounts that are about to be rolled back.
+        self.validating: bool = False
+
+    def invalidate_sede_cache(self) -> None:
+        self._sede_cache = None
+
+    def invalidate_tutor_cache(self) -> None:
+        self._tutor_cache = None
 
     # lazy service accessors (share this session; they flush, never commit here)
     def _svc(self, key, factory):
@@ -166,36 +190,42 @@ class ImportContext:
         t = (text or "").strip().lower()
         if not t:
             return None
+        if self._institution_cache is None:
+            self._institution_cache = self.repos.institution_types.list()
         # Exact match on code (case-insensitive)
-        for inst in self.repos.institution_types.list():
+        for inst in self._institution_cache:
             if inst.code.lower() == t:
                 return inst.id
         # Match on name
-        for inst in self.repos.institution_types.list():
+        for inst in self._institution_cache:
             if inst.name.lower() == t or t in inst.name.lower():
                 return inst.id
         # Special handling for common abbreviations
+        code = None
         if "essalud" in t or "es salud" in t or "seguro social" in t:
-            it = self.repos.institution_types.get_by_code("ESSALUD")
-            return it.id if it else None
-        if "minsa" in t or "ministerio" in t:
-            it = self.repos.institution_types.get_by_code("MINSA")
-            return it.id if it else None
-        if "privad" in t:
-            it = self.repos.institution_types.get_by_code("PRIVADA")
-            return it.id if it else None
+            code = "ESSALUD"
+        elif "minsa" in t or "ministerio" in t:
+            code = "MINSA"
+        elif "privad" in t:
+            code = "PRIVADA"
+        if code:
+            for inst in self._institution_cache:
+                if inst.code == code:
+                    return inst.id
         return None
 
     def sede_id(self, text: str) -> int | None:
         t = (text or "").strip().lower()
         if not t:
             return None
+        if self._sede_cache is None:
+            self._sede_cache = self.repos.sedes.active()
         # Exact match on name or short_name (case-insensitive)
-        for s in self.repos.sedes.active():
+        for s in self._sede_cache:
             if s.name.lower() == t or (s.short_name or "").lower() == t:
                 return s.id
         # Partial match as fallback (case-insensitive)
-        for s in self.repos.sedes.active():
+        for s in self._sede_cache:
             if t in s.name.lower() or (s.short_name and t in s.short_name.lower()):
                 return s.id
         return None
@@ -204,12 +234,14 @@ class ImportContext:
         t = (text or "").strip().lower()
         if not t:
             return None
+        if self._rotation_type_cache is None:
+            self._rotation_type_cache = self.repos.rotation_types.list()
         # Exact match first (case-insensitive)
-        for rt in self.repos.rotation_types.list():
+        for rt in self._rotation_type_cache:
             if rt.code.lower() == t or rt.name.lower() == t:
                 return rt.id
         # Partial match as fallback
-        for rt in self.repos.rotation_types.list():
+        for rt in self._rotation_type_cache:
             if t in rt.name.lower() or t in rt.code.lower():
                 return rt.id
         return None
@@ -218,12 +250,14 @@ class ImportContext:
         t = (text or "").strip().lower()
         if not t:
             return None
+        if self._period_cache is None:
+            self._period_cache = self.repos.periods.ordered()
         # Exact match first (case-insensitive)
-        for p in self.repos.periods.ordered():
+        for p in self._period_cache:
             if p.code.lower() == t or p.name.lower() == t:
                 return p.id
         # Partial match as fallback
-        for p in self.repos.periods.ordered():
+        for p in self._period_cache:
             if t in p.name.lower() or t in p.code.lower():
                 return p.id
         return None
@@ -232,7 +266,9 @@ class ImportContext:
         t = (text or "").strip().lower()
         if not t:
             return None
-        for tp in self.repos.tutors.active():
+        if self._tutor_cache is None:
+            self._tutor_cache = self.repos.tutors.active()
+        for tp in self._tutor_cache:
             if tp.user and tp.user.email.lower() == t:
                 return tp.id
         return None
@@ -426,10 +462,12 @@ class SedeProfile(ImportProfile):
             for f in fields:
                 setattr(existing, f, data[f])
             ctx.db.flush()
+            ctx.invalidate_sede_cache()
             return self.entity_type, existing.id
         sede = Sede(**{f: data[f] for f in fields})
         ctx.repos.sedes.add(sede)
         ctx.db.flush()
+        ctx.invalidate_sede_cache()
         return self.entity_type, sede.id
 
 
@@ -479,7 +517,7 @@ class CoordinatorProfile(_StaffProfile):
     def apply(self, ctx, data, existing, action):
         user, _ = ctx.coordinators._create_user(
             full_name=data["full_name"], email=data["email"], phone=data.get("phone"),
-            role_code=ROLE_SEDE_COORDINATOR, password=None)
+            role_code=ROLE_SEDE_COORDINATOR, password=None, skip_hash=ctx.validating)
         prof = SedeCoordinatorProfile(
             user_id=user.id, sede_id=data["sede_id"], specialty=data.get("specialty"),
             office_phone=data.get("phone"), is_principal=False, is_active=True)
@@ -507,12 +545,13 @@ class TutorProfileImport(_StaffProfile):
     def apply(self, ctx, data, existing, action):
         user, _ = ctx.tutors._create_user(
             full_name=data["full_name"], email=data["email"], phone=data.get("phone"),
-            role_code=ROLE_TUTOR, password=None)
+            role_code=ROLE_TUTOR, password=None, skip_hash=ctx.validating)
         prof = TutorProfile(
             user_id=user.id, sede_id=data["sede_id"], specialty=data.get("specialty"),
             service=data.get("specialty"), contact_phone=data.get("phone"), is_active=True)
         ctx.repos.tutors.add(prof)
         ctx.db.flush()
+        ctx.invalidate_tutor_cache()
         return self.entity_type, prof.id
 
 
