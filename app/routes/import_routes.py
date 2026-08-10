@@ -15,6 +15,7 @@ import json
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse, Response
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from app.authorization import ensure
 from app.csrf import csrf_protect
@@ -103,14 +104,15 @@ async def import_create(request: Request, identity: Identity = Depends(require_i
     raw = await upload.read()
     try:
         if multi or profile == "multi_sheet":
-            # Multi-sheet import: auto-detect sheets and profile them
-            batch = svc.create_multi_sheet_batch(upload.filename, upload.content_type, raw,
-                                                 ip=client_ip(request))
+            # Multi-sheet import: auto-detect sheets and profile them.
+            # Parsing the workbook is sync/CPU work — off the event loop.
+            batch = await run_in_threadpool(svc.create_multi_sheet_batch, upload.filename,
+                                            upload.content_type, raw, ip=client_ip(request))
             return RedirectResponse(url=f"/imports/{batch.id}/multi-preview", status_code=303)
         else:
-            batch = svc.create_batch(profile, upload.filename, upload.content_type, raw,
-                                     scheme_id=int(scheme_id) if scheme_id.strip() else None,
-                                     ip=client_ip(request))
+            batch = await run_in_threadpool(
+                svc.create_batch, profile, upload.filename, upload.content_type, raw,
+                scheme_id=int(scheme_id) if scheme_id.strip() else None, ip=client_ip(request))
             return RedirectResponse(url=f"/imports/{batch.id}/sheet", status_code=303)
     except ValidationError as e:
         flash(request, list(e.errors.values())[0], "danger")
@@ -206,7 +208,10 @@ async def import_set_map(batch_id: int, request: Request,
                if k.startswith("map_") and v}
     svc.set_mapping(batch_id, mapping, mode, ip=client_ip(request))
     try:
-        svc.validate_batch(batch_id, ip=client_ip(request))
+        # Row-by-row validation can take real time for larger sheets — run it
+        # off the event loop so the server keeps answering other requests
+        # (notably Render's health check) while it works.
+        await run_in_threadpool(svc.validate_batch, batch_id, ip=client_ip(request))
     except ValidationError as e:
         flash(request, list(e.errors.values())[0], "danger")
         return RedirectResponse(url=f"/imports/{batch_id}/map", status_code=303)
@@ -232,7 +237,10 @@ async def import_confirm(batch_id: int, request: Request,
                          content_hash: str = Form("")):
     svc = ImportService(db, identity)
     try:
-        svc.confirm_batch(batch_id, expected_hash=content_hash or None, ip=client_ip(request))
+        # Confirming can create many rows (and hash a password per new
+        # account) — offload to a thread so the event loop stays responsive.
+        await run_in_threadpool(svc.confirm_batch, batch_id,
+                                expected_hash=content_hash or None, ip=client_ip(request))
     except ValidationError as e:
         flash(request, list(e.errors.values())[0], "danger")
         return RedirectResponse(url=f"/imports/{batch_id}", status_code=303)
@@ -291,7 +299,11 @@ async def import_multi_validate(batch_id: int, request: Request,
     """Validate all detected sheets."""
     svc = ImportService(db, identity)
     try:
-        batch = svc.validate_multi_sheet_batch(batch_id, ip=client_ip(request))
+        # Validating a multi-sheet batch stages rows across sheets inside a
+        # SAVEPOINT — run it off the event loop so the server keeps
+        # responding to other requests (notably Render's health check).
+        batch = await run_in_threadpool(svc.validate_multi_sheet_batch, batch_id,
+                                        ip=client_ip(request))
     except ValidationError as e:
         flash(request, list(e.errors.values())[0], "danger")
         return RedirectResponse(url=f"/imports/{batch_id}/multi-preview", status_code=303)
@@ -334,7 +346,11 @@ async def import_multi_confirm(batch_id: int, request: Request,
     """Confirm and import all validated sheets (transactional)."""
     svc = ImportService(db, identity)
     try:
-        svc.confirm_multi_sheet_batch(batch_id, ip=client_ip(request))
+        # This is the slow one: hashing a real password for every new
+        # coordinator/tutor account plus writing every row. Real accounts
+        # need real bcrypt cost, so the fix isn't to skip it — it's to not
+        # let it block the whole server for 15+ seconds while it runs.
+        await run_in_threadpool(svc.confirm_multi_sheet_batch, batch_id, ip=client_ip(request))
     except ValidationError as e:
         flash(request, list(e.errors.values())[0], "danger")
         return RedirectResponse(url=f"/imports/{batch_id}/multi-result", status_code=303)
