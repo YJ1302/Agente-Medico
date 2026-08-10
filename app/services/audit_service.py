@@ -134,6 +134,7 @@ IMPORT_ROW_UPDATED = "import_row_updated"
 IMPORT_ROW_SKIPPED = "import_row_skipped"
 IMPORT_ROW_FAILED = "import_row_failed"
 DOWNLOAD_IMPORT_ERROR_REPORT = "download_import_error_report"
+DOWNLOAD_IMPORT_CREDENTIALS = "download_import_credentials"
 IMPORT_GRADE_COMPONENT = "import_grade_component"
 UPDATE_GRADE_COMPONENT_FROM_IMPORT = "update_grade_component_from_import"
 

@@ -147,6 +147,12 @@ class ImportContext:
         # validate_multi_sheet_batch) — lets user-creating profiles skip the
         # real bcrypt hash for accounts that are about to be rolled back.
         self.validating: bool = False
+        # Temporary passwords generated for newly created accounts during a
+        # real confirm (never populated while validating — those accounts
+        # get rolled back and their passwords are meaningless). Collected so
+        # the caller can offer a one-time credentials download; nothing here
+        # is persisted in plaintext beyond that single file.
+        self.credentials: list[dict] = []
 
     def invalidate_sede_cache(self) -> None:
         self._sede_cache = None
@@ -515,9 +521,12 @@ class CoordinatorProfile(_StaffProfile):
                          existing_id=existing.id if existing else None)
 
     def apply(self, ctx, data, existing, action):
-        user, _ = ctx.coordinators._create_user(
+        user, generated = ctx.coordinators._create_user(
             full_name=data["full_name"], email=data["email"], phone=data.get("phone"),
             role_code=ROLE_SEDE_COORDINATOR, password=None, skip_hash=ctx.validating)
+        if generated and not ctx.validating:
+            ctx.credentials.append({"full_name": data["full_name"], "email": data["email"],
+                                    "role": "Coordinador de Sede", "password": generated})
         prof = SedeCoordinatorProfile(
             user_id=user.id, sede_id=data["sede_id"], specialty=data.get("specialty"),
             office_phone=data.get("phone"), is_principal=False, is_active=True)
@@ -543,9 +552,12 @@ class TutorProfileImport(_StaffProfile):
                          existing_id=existing.id if existing else None)
 
     def apply(self, ctx, data, existing, action):
-        user, _ = ctx.tutors._create_user(
+        user, generated = ctx.tutors._create_user(
             full_name=data["full_name"], email=data["email"], phone=data.get("phone"),
             role_code=ROLE_TUTOR, password=None, skip_hash=ctx.validating)
+        if generated and not ctx.validating:
+            ctx.credentials.append({"full_name": data["full_name"], "email": data["email"],
+                                    "role": "Tutor", "password": generated})
         prof = TutorProfile(
             user_id=user.id, sede_id=data["sede_id"], specialty=data.get("specialty"),
             service=data.get("specialty"), contact_phone=data.get("phone"), is_active=True)

@@ -274,6 +274,26 @@ def import_error_report(batch_id: int, request: Request,
                     headers={"Content-Disposition": f'attachment; filename="{batch.code}_errores.xlsx"'})
 
 
+@router.get("/imports/{batch_id}/credentials.xlsx")
+def import_credentials(batch_id: int, request: Request,
+                       identity: Identity = Depends(require_identity),
+                       db: Session = Depends(get_db)):
+    """One-time download of temp passwords for accounts this batch created.
+    The file is deleted server-side the moment it's served — refreshing or
+    revisiting this URL afterward returns a clear "already downloaded" error
+    rather than silently failing."""
+    svc = ImportService(db, identity)
+    batch = svc.get_for_view(batch_id)
+    try:
+        content = svc.download_credentials(batch, ip=client_ip(request))
+    except ValidationError as e:
+        flash(request, list(e.errors.values())[0], "danger")
+        return RedirectResponse(url=f"/imports/{batch_id}", status_code=303)
+    return Response(content=content,
+                    media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f'attachment; filename="{batch.code}_credenciales.xlsx"'})
+
+
 # -- multi-sheet import routes ------------------------------------------------
 @router.get("/imports/{batch_id}/multi-preview")
 def import_multi_preview(batch_id: int, request: Request,

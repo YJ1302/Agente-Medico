@@ -298,8 +298,31 @@ class ImportService:
             batch.status = ImportStatus.FAILED.value
             self.db.commit()
             raise
+        self._store_credentials(batch, ctx.credentials)
         self._cleanup_file(batch)
         return batch
+
+    def _store_credentials(self, batch: ImportBatch, credentials: list[dict]) -> None:
+        """Persist a one-time downloadable file of temp passwords for
+        accounts created by this batch (coordinators/tutors get a random
+        password on creation same as the single-add UI form, but the bulk
+        importer had no way to surface it — see admin_download_credentials).
+        The plaintext only ever lives in this file, deleted on first
+        download; nothing is written back to ImportRow or logs."""
+        if not credentials:
+            return
+        from app.services.export_service import excel_from_table
+        headers = ["Nombre completo", "Correo", "Rol", "Contraseña temporal"]
+        rows = [[c["full_name"], c["email"], c["role"], c["password"]] for c in credentials]
+        content = excel_from_table(
+            title=f"Credenciales de acceso — {batch.code}", headers=headers, rows=rows,
+            meta={"Importación": batch.code,
+                  "Nota": "Comparta cada credencial de forma segura y pida cambiarla al ingresar. "
+                          "Este archivo solo puede descargarse una vez."})
+        stored = f"{uuid.uuid4().hex}.creds.xlsx"
+        self._path(stored).write_bytes(content)
+        batch.notes = stored
+        self.db.commit()
 
     def cancel_batch(self, batch_id: int, ip: str | None = None) -> ImportBatch:
         batch = self.repos.import_batches.get(batch_id)
@@ -465,6 +488,29 @@ class ImportService:
             meta={"Perfil": batch.profile, "Archivo": batch.original_filename,
                   "Generado por": self.identity.email})
         self.audit.record(audit.DOWNLOAD_IMPORT_ERROR_REPORT, identity=self.identity,
+                          entity_type="import_batch", entity_id=batch.id,
+                          detail={"code": batch.code}, ip_address=ip)
+        return content
+
+    def has_credentials(self, batch: ImportBatch) -> bool:
+        return bool(batch.notes)
+
+    def download_credentials(self, batch: ImportBatch, ip: str | None = None) -> bytes:
+        """One-time download: temp passwords only ever live in this file,
+        never in ImportRow, logs, or the audit detail. Deleted immediately
+        after being served so a stale link can't be replayed."""
+        if not batch.notes:
+            raise ValidationError({"file": "No hay credenciales pendientes de descarga para "
+                                           "esta importación (puede que ya se hayan descargado)."})
+        path = self._path(batch.notes)
+        if not path.exists():
+            raise ValidationError({"file": "El archivo de credenciales ya no está disponible "
+                                           "(puede que ya se haya descargado)."})
+        content = path.read_bytes()
+        path.unlink()
+        batch.notes = None
+        self.db.commit()
+        self.audit.record(audit.DOWNLOAD_IMPORT_CREDENTIALS, identity=self.identity,
                           entity_type="import_batch", entity_id=batch.id,
                           detail={"code": batch.code}, ip_address=ip)
         return content
@@ -718,5 +764,6 @@ class ImportService:
             self.db.commit()
             raise
 
+        self._store_credentials(batch, ctx.credentials)
         self._cleanup_file(batch)
         return batch
