@@ -31,7 +31,7 @@ enforce with write operations.
 |----------------------------|:-----:|:------------:|:-----------:|:-----:|:-------:|
 | Dashboard                  |  F    |  R           |  R (sede)   |  R (own) | R (own) |
 | Students                   |  F    |  R           |  S (sede)   |  R (sede) | S (self) |
-| Sedes                      |  F    |  R           |  R (own)    |  R    | R |
+| Sedes                      |  F    |  R           |  R (own)    |  R (own) | R (own) |
 | Coordinators & Tutors      |  F    |  R           |  S (sede)   |  R (sede, tutors only) | — |
 | Rotations                  |  F    |  R           |  S (sede)   |  R (sede) | S (self) |
 | Activity monitoring        |  F    |  R           |  S (sede)   |  S (own students) | S (self) |
@@ -60,6 +60,44 @@ The sidebar is filtered per role in `app/services/navigation.py`:
 - **Comunicados** — visible to every authenticated role (read); sending one is
   Admin/University/Sede Coordinator only.
 - All other items — visible to every authenticated role.
+
+## Multi-role accounts
+
+A single account may hold more than one role — the recurring real case is a
+Sede Coordinator who is also a Tutor. `app.models.user.UserRole` grants roles
+to a user beyond the account's default `role_id`; every authorization check
+in the app still reads one **active** `identity.role_code`, so nothing about
+scoping or permissions above changes — only how that active role gets set:
+
+- **Login**: an account with exactly one granted role logs straight into its
+  dashboard as before. An account with more than one sees a "choose panel"
+  screen (`/login/choose-role`) after the password is verified; the choice
+  becomes the session's active role. Not optional — no default is assumed.
+- **Mid-session switch**: `/switch-role` (a control in the account menu,
+  visible only when `identity.has_multiple_roles`) changes the active role
+  without logging out. The requested role is re-checked against the database
+  on every switch, never trusted from the signed session cookie alone, so a
+  role revoked mid-session can't still be switched into.
+- **Granting/revoking**: Admin-only, from **Users & Roles** (`/users`).
+  Admin and University Coordinator carry no profile row and grant instantly;
+  Sede Coordinator and Tutor need a sede (and optionally a specialty), so
+  granting one of those opens a small form that reuses the same
+  `CoordinatorService.create()` / `TutorService.create()` validation as
+  creating a brand-new account — just attached to the existing one via
+  `existing_user=`, no new login/password created. A role can't be revoked
+  if it's the account's only one; revoking a profile-bearing role deactivates
+  (never deletes) the associated Tutor/Coordinator profile, preserving its
+  evaluation/rotation history.
+- **Bulk import**: importing a Coordinadores/Tutores row whose email already
+  belongs to an account without that specific role attaches the role to that
+  existing account instead of failing on "correo ya registrado" — this is
+  what makes re-uploading a corrected template safe when the same person
+  appears in both sheets.
+- **Student is intentionally excluded** from this admin-grant mechanism — a
+  Student record can pre-exist without a login (bulk-imported before an
+  account is provisioned) and gets one via the separate "Crear cuenta" action
+  on the student detail page, a different linking pattern than the other
+  roles.
 
 ## Batch 2A scope (Sedes, Coordinators, Tutors) — enforced server-side
 

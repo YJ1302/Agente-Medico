@@ -1,3 +1,4 @@
+{% from "partials/forms.html" import csrf_field %}
 <header class="topbar">
   <button class="icon-btn mobile-only" id="mobileMenuBtn" aria-label="Menú">
     <i class="bi bi-list"></i>
@@ -53,6 +54,22 @@
       <a href="/profile"><i class="bi bi-person-circle"></i>{{ t('Mi perfil') }}</a>
       {% if identity.role_code == 'admin' %}
       <a href="/settings"><i class="bi bi-gear"></i>{{ t('Configuración') }}</a>
+      {% endif %}
+      {% if identity.has_multiple_roles %}
+      <div class="dm-item" style="opacity:.8; margin-top:4px; border-top:1px solid var(--border); padding-top:10px">
+        <i class="bi bi-arrow-left-right"></i>{{ t('Cambiar panel') }}
+      </div>
+      {% for code, name in identity.available_roles %}
+      {% if code != identity.role_code %}
+      <form method="post" action="/switch-role" style="margin:0">
+        {{ csrf_field(csrf_token) }}
+        <input type="hidden" name="role_code" value="{{ code }}" />
+        <button type="submit" class="dm-item" style="width:100%; text-align:left; background:none; border:0; cursor:pointer; font:inherit">
+          <i class="bi bi-person-workspace"></i>{{ name }}
+        </button>
+      </form>
+      {% endif %}
+      {% endfor %}
       {% endif %}
       <a href="/logout" style="color:var(--danger)"><i class="bi bi-box-arrow-right"></i>{{ t('Cerrar sesión') }}</a>
     </div>

@@ -26,6 +26,7 @@ from app.models.user import (
     ROLE_SEDE_COORDINATOR,
     ROLE_TUTOR,
     ROLE_UNIVERSITY_COORDINATOR,
+    User,
 )
 from app.repositories.repositories import RepositoryBundle
 from app.services.auth_service import Identity
@@ -499,9 +500,23 @@ class _StaffProfile(ImportProfile):
             "sede_id": _idstr(ctx.sede_id(normalized["sede"])),
         }
 
+    def _existing_profile(self, user: User):
+        """The profile row this user already has for THIS staff role, if
+        any — subclasses override with their one-to-one relationship."""
+        raise NotImplementedError
+
     def find_existing(self, ctx, data):
-        user = ctx.repos.users.get_by_email(data["email"]) if data.get("email") else None
-        return user  # existence handled per-subclass; treated as duplicate
+        """Three outcomes: the matching profile row (re-importing someone
+        who already has *this* role — a real update), the existing User
+        (the email belongs to someone who doesn't hold this role yet — the
+        row should attach it to that account instead of erroring on a
+        duplicate email), or None (a brand-new person)."""
+        if not data.get("email"):
+            return None
+        user = ctx.repos.users.get_by_email(data["email"])
+        if user is None:
+            return None
+        return self._existing_profile(user) or user
 
 
 class CoordinatorProfile(_StaffProfile):
@@ -509,24 +524,53 @@ class CoordinatorProfile(_StaffProfile):
     label = "Coordinadores de Sede"
     entity_type = "sede_coordinator"
 
+    def _existing_profile(self, user: User):
+        return user.sede_coordinator_profile
+
     def validate(self, ctx, data, existing):
         msgs: list[Message] = []
+        attach_user = existing if isinstance(existing, User) else None
+        same_role = existing if isinstance(existing, SedeCoordinatorProfile) else None
         try:
             clean = ctx.coordinators._validate({**data, "office_phone": data.get("phone")},
-                                               existing=None)
+                                               existing=same_role, attach_user=attach_user)
             data.update(clean)
         except ValidationError as e:
             msgs.extend(_messages_from_validation_error(e))
+        if attach_user is not None and not msgs:
+            msgs.append(Message(
+                "warning", "email",
+                f"Correo ya registrado ({attach_user.role.name}); se agregará el rol de "
+                "Coordinador de Sede a esa misma cuenta."))
         return RowResult(normalized=data, messages=msgs,
-                         existing_id=existing.id if existing else None)
+                         existing_id=same_role.id if same_role else None)
 
     def apply(self, ctx, data, existing, action):
-        user, generated = ctx.coordinators._create_user(
-            full_name=data["full_name"], email=data["email"], phone=data.get("phone"),
-            role_code=ROLE_SEDE_COORDINATOR, password=None, skip_hash=ctx.validating)
-        if generated and not ctx.validating:
-            ctx.credentials.append({"full_name": data["full_name"], "email": data["email"],
-                                    "role": "Coordinador de Sede", "password": generated})
+        attach_user = existing if isinstance(existing, User) else None
+        same_role = existing if isinstance(existing, SedeCoordinatorProfile) else None
+
+        if same_role is not None:
+            # Re-importing someone who already has this exact role: update
+            # the existing profile in place rather than erroring/duplicating.
+            same_role.user.full_name = data["full_name"]
+            same_role.user.phone = data.get("phone")
+            same_role.specialty = data.get("specialty")
+            same_role.office_phone = data.get("phone")
+            same_role.sede_id = data["sede_id"]
+            ctx.db.flush()
+            return self.entity_type, same_role.id
+
+        if attach_user is not None:
+            role = ctx.repos.roles.get_by_code(ROLE_SEDE_COORDINATOR)
+            ctx.repos.user_roles.grant(attach_user.id, role.id)
+            user, generated = attach_user, ""
+        else:
+            user, generated = ctx.coordinators._create_user(
+                full_name=data["full_name"], email=data["email"], phone=data.get("phone"),
+                role_code=ROLE_SEDE_COORDINATOR, password=None, skip_hash=ctx.validating)
+            if generated and not ctx.validating:
+                ctx.credentials.append({"full_name": data["full_name"], "email": data["email"],
+                                        "role": "Coordinador de Sede", "password": generated})
         prof = SedeCoordinatorProfile(
             user_id=user.id, sede_id=data["sede_id"], specialty=data.get("specialty"),
             office_phone=data.get("phone"), is_principal=False, is_active=True)
@@ -540,24 +584,53 @@ class TutorProfileImport(_StaffProfile):
     label = "Tutores"
     entity_type = "tutor"
 
+    def _existing_profile(self, user: User):
+        return user.tutor_profile
+
     def validate(self, ctx, data, existing):
         msgs: list[Message] = []
+        attach_user = existing if isinstance(existing, User) else None
+        same_role = existing if isinstance(existing, TutorProfile) else None
         try:
             clean = ctx.tutors._validate({**data, "service": data.get("specialty")},
-                                         existing=None)
+                                         existing=same_role, attach_user=attach_user)
             data.update(clean)
         except ValidationError as e:
             msgs.extend(_messages_from_validation_error(e))
+        if attach_user is not None and not msgs:
+            msgs.append(Message(
+                "warning", "email",
+                f"Correo ya registrado ({attach_user.role.name}); se agregará el rol de "
+                "Tutor a esa misma cuenta."))
         return RowResult(normalized=data, messages=msgs,
-                         existing_id=existing.id if existing else None)
+                         existing_id=same_role.id if same_role else None)
 
     def apply(self, ctx, data, existing, action):
-        user, generated = ctx.tutors._create_user(
-            full_name=data["full_name"], email=data["email"], phone=data.get("phone"),
-            role_code=ROLE_TUTOR, password=None, skip_hash=ctx.validating)
-        if generated and not ctx.validating:
-            ctx.credentials.append({"full_name": data["full_name"], "email": data["email"],
-                                    "role": "Tutor", "password": generated})
+        attach_user = existing if isinstance(existing, User) else None
+        same_role = existing if isinstance(existing, TutorProfile) else None
+
+        if same_role is not None:
+            same_role.user.full_name = data["full_name"]
+            same_role.user.phone = data.get("phone")
+            same_role.specialty = data.get("specialty")
+            same_role.service = data.get("specialty")
+            same_role.contact_phone = data.get("phone")
+            same_role.sede_id = data["sede_id"]
+            ctx.db.flush()
+            ctx.invalidate_tutor_cache()
+            return self.entity_type, same_role.id
+
+        if attach_user is not None:
+            role = ctx.repos.roles.get_by_code(ROLE_TUTOR)
+            ctx.repos.user_roles.grant(attach_user.id, role.id)
+            user, generated = attach_user, ""
+        else:
+            user, generated = ctx.tutors._create_user(
+                full_name=data["full_name"], email=data["email"], phone=data.get("phone"),
+                role_code=ROLE_TUTOR, password=None, skip_hash=ctx.validating)
+            if generated and not ctx.validating:
+                ctx.credentials.append({"full_name": data["full_name"], "email": data["email"],
+                                        "role": "Tutor", "password": generated})
         prof = TutorProfile(
             user_id=user.id, sede_id=data["sede_id"], specialty=data.get("specialty"),
             service=data.get("specialty"), contact_phone=data.get("phone"), is_active=True)

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Elegir panel{% endblock %}
+
+{% block content_anon %}
+<div class="login-wrap">
+  <div class="login-brand">
+    <div class="badge-360"><i class="bi bi-hospital"></i> UPeU Internado 360</div>
+    <h1>Internado <span>360</span></h1>
+    <p class="subtitle">{{ app_subtitle }}</p>
+  </div>
+
+  <div class="login-form-side">
+    <div class="login-card">
+      <h2>Hola, {{ full_name }}</h2>
+      <p class="muted">Su cuenta tiene más de un rol. Elija con cuál desea ingresar.</p>
+
+      {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+
+      <form method="post" action="/login/choose-role" autocomplete="off">
+        <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:20px">
+          {% for role in roles %}
+          <label class="role-choice">
+            <input type="radio" name="role_code" value="{{ role.code }}" {% if loop.first %}checked{% endif %} />
+            <span>{{ role.name }}</span>
+          </label>
+          {% endfor %}
+        </div>
+        <button class="btn btn-primary btn-block" type="submit">
+          <i class="bi bi-box-arrow-in-right"></i> Continuar
+        </button>
+      </form>
+
+      <div class="privacy-note">
+        <i class="bi bi-info-circle"></i>
+        Podrá cambiar de panel en cualquier momento desde el menú de su cuenta, sin volver a iniciar sesión.
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

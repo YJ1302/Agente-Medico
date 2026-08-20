@@ -19,7 +19,12 @@
     </div>
     <div class="list-def">
       <dt>Correo</dt><dd>{{ identity.email }}</dd>
-      <dt>Rol</dt><dd>{{ identity.role_name }}</dd>
+      <dt>Rol activo</dt><dd>{{ identity.role_name }}</dd>
+      {% if identity.has_multiple_roles %}
+      <dt>Otros roles</dt>
+      <dd>{{ identity.available_roles | rejectattr('0', 'equalto', identity.role_code) | map(attribute='1') | join(', ') }}
+        · <a href="#" onclick="event.stopPropagation(); document.getElementById('userMenu').classList.add('open'); return false" style="font-size:12.5px">cambiar desde el menú de cuenta</a></dd>
+      {% endif %}
       <dt>ID de usuario</dt><dd>#{{ identity.user_id }}</dd>
     </div>
   </div>

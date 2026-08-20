@@ -10,10 +10,10 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from app.authorization import ensure, is_admin, is_global_viewer
+from app.authorization import ensure, is_admin, is_global_viewer, tutor_sede_ids
 from app.models.base import InstitutionCode, utcnow
 from app.models.organization import Sede
-from app.models.user import ROLE_SEDE_COORDINATOR
+from app.models.user import ROLE_SEDE_COORDINATOR, ROLE_STUDENT, ROLE_TUTOR
 from app.repositories.repositories import RepositoryBundle
 from app.services import audit_service as audit
 from app.services.audit_service import AuditService
@@ -35,15 +35,31 @@ class SedeService:
 
     # -- scope ------------------------------------------------------------
     def _scope_sede_ids(self) -> set[int] | None:
-        """Sede ids the identity is limited to, or None for global viewers."""
+        """Sede ids the identity is limited to, or None for global viewers.
+
+        Previously only Sede Coordinator was scoped here — Tutor and Student
+        fell through to an empty set, which silently returned zero sedes on
+        the list page (not a privacy measure, just never implemented) while
+        still passing scope checks incorrectly. Both now see their own sede
+        only, matching Liz's spec ("ver información sobre él" / "de su
+        sede") and the scoping already applied everywhere else (students,
+        rotations, tutors, grades, announcements).
+        """
         if is_global_viewer(self.identity):
             return None
-        ids: set[int] = set()
         if self.identity.role_code == ROLE_SEDE_COORDINATOR:
+            ids: set[int] = set()
             for c in self.repos.sede_coordinators.active():
                 if c.user_id == self.identity.user_id and c.sede_id:
                     ids.add(c.sede_id)
-        return ids
+            return ids
+        if self.identity.role_code == ROLE_TUTOR:
+            return tutor_sede_ids(self.identity, self.repos)
+        if self.identity.role_code == ROLE_STUDENT:
+            student = next((s for s in self.repos.students.search(active=None)
+                            if s.user_id == self.identity.user_id), None)
+            return {student.sede_id} if student and student.sede_id else set()
+        return set()
 
     def can_view(self, sede: Sede) -> bool:
         scope = self._scope_sede_ids()

@@ -84,8 +84,6 @@ def audit(request: Request, identity: Identity = Depends(require_admin),
 # Each entry: path -> (title, subtitle, icon, guard-dependency).
 # The guard enforces role access server-side, not just via the hidden sidebar.
 _PLACEHOLDERS = {
-    "/users": ("Usuarios y Roles", "Gestión de cuentas y permisos.",
-               "person-badge", require_admin),
     "/periods": ("Periodos Académicos", "Bimestres del año de internado.",
                  "calendar3", require_admin_or_university),
     "/settings": ("Configuración", "Parámetros del sistema.",

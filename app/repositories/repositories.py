@@ -45,7 +45,7 @@ from app.models.organization import (
     TutorProfile,
 )
 from app.models.student import Student
-from app.models.user import Role, User
+from app.models.user import Role, User, UserRole
 from app.repositories.base_repository import BaseRepository
 
 
@@ -60,6 +60,20 @@ class UserRepository(BaseRepository[User]):
         )
         return self.db.execute(stmt).scalar_one_or_none()
 
+    def search(self, query: str | None = None) -> list[User]:
+        stmt = (
+            select(User)
+            .options(selectinload(User.role), selectinload(User.role_grants).selectinload(UserRole.role))
+            .where(User.is_deleted.is_(False))
+            .order_by(User.full_name)
+        )
+        if query:
+            like = f"%{query.strip().lower()}%"
+            stmt = stmt.where(
+                func.lower(User.full_name).like(like) | func.lower(User.email).like(like)
+            )
+        return list(self.db.execute(stmt).scalars().all())
+
 
 class RoleRepository(BaseRepository[Role]):
     model = Role
@@ -68,6 +82,60 @@ class RoleRepository(BaseRepository[Role]):
         return self.db.execute(
             select(Role).where(Role.code == code)
         ).scalar_one_or_none()
+
+    def all_ordered(self) -> list[Role]:
+        return list(self.db.execute(
+            select(Role).order_by(Role.hierarchy_level)
+        ).scalars().all())
+
+
+class UserRoleRepository(BaseRepository[UserRole]):
+    model = UserRole
+
+    def roles_for_user(self, user_id: int) -> list[Role]:
+        """Roles granted to this user, ordered by hierarchy (most senior first).
+
+        Falls back to the account's default ``role_id`` if no grant rows
+        exist yet (e.g. a user created before the multi-role migration ran
+        in a given environment) — every account must resolve to at least
+        one usable role.
+        """
+        stmt = (
+            select(Role)
+            .join(UserRole, UserRole.role_id == Role.id)
+            .where(UserRole.user_id == user_id)
+            .order_by(Role.hierarchy_level)
+        )
+        roles = list(self.db.execute(stmt).scalars().all())
+        if roles:
+            return roles
+        user = self.db.get(User, user_id)
+        return [user.role] if user and user.role else []
+
+    def has_role(self, user_id: int, role_id: int) -> bool:
+        stmt = select(UserRole.id).where(
+            UserRole.user_id == user_id, UserRole.role_id == role_id
+        )
+        return self.db.execute(stmt).scalar_one_or_none() is not None
+
+    def grant(self, user_id: int, role_id: int) -> UserRole | None:
+        """Add a role grant if not already present. Returns the new row, or
+        None if the user already held that role (idempotent no-op)."""
+        if self.has_role(user_id, role_id):
+            return None
+        grant = UserRole(user_id=user_id, role_id=role_id)
+        self.db.add(grant)
+        self.db.flush()
+        return grant
+
+    def revoke(self, user_id: int, role_id: int) -> None:
+        stmt = select(UserRole).where(
+            UserRole.user_id == user_id, UserRole.role_id == role_id
+        )
+        grant = self.db.execute(stmt).scalar_one_or_none()
+        if grant is not None:
+            self.db.delete(grant)
+            self.db.flush()
 
 
 class InstitutionTypeRepository(BaseRepository[InstitutionType]):
@@ -1229,6 +1297,7 @@ class RepositoryBundle:
         self.db = db
         self.users = UserRepository(db)
         self.roles = RoleRepository(db)
+        self.user_roles = UserRoleRepository(db)
         self.institution_types = InstitutionTypeRepository(db)
         self.sedes = SedeRepository(db)
         self.students = StudentRepository(db)

@@ -142,6 +142,11 @@ UPDATE_GRADE_COMPONENT_FROM_IMPORT = "update_grade_component_from_import"
 # Comunicados (announcements).
 CREATE_ANNOUNCEMENT = "create_announcement"
 
+# Multi-role support — granting/revoking an additional role on an existing
+# account (e.g. a Sede Coordinator who also tutors interns).
+GRANT_ROLE = "grant_role"
+REVOKE_ROLE = "revoke_role"
+
 # Phase 3A — AI Coordinator Assistant.
 AI_ASSISTANT_QUERY = "ai_assistant_query"
 AI_ASSISTANT_RESPONSE = "ai_assistant_response"

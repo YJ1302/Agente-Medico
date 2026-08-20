@@ -19,6 +19,8 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
+from sqlalchemy import select
+
 from app.database import Base, SessionLocal, engine
 from app.logging_config import get_logger
 from app.data.activity_catalog import build_catalog
@@ -90,6 +92,7 @@ from app.models.user import (
     ROLE_UNIVERSITY_COORDINATOR,
     Role,
     User,
+    UserRole,
 )
 from app.security import hash_password
 
@@ -868,6 +871,16 @@ def seed(reset: bool = False) -> None:  # noqa: C901 - linear seed reads clearer
         # -- Batch 2F: grade schemes (null weights) + import batches -----
         _seed_grades_and_imports(db, year, students, uni_coord, rt_cirugia, current_period)
         db.add(DocumentSequence(kind="import", year=year, last_value=3))
+
+        # Every seeded account gets a UserRole grant matching its role_id —
+        # the same backfill Alembic migration 248b0b63a48a does for a real
+        # deployment's existing data. Without this, an account created here
+        # would appear to have zero granted roles until an admin explicitly
+        # grants one (roles_for_user() only falls back to role_id when the
+        # grant table is *completely* empty for that user).
+        for u in db.execute(select(User)).scalars().all():
+            db.add(UserRole(user_id=u.id, role_id=u.role_id))
+        db.flush()
 
         db.commit()
         _print_summary(db)

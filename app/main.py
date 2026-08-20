@@ -44,6 +44,7 @@ from app.routes import (
     sede_routes,
     student_routes,
     tutor_routes,
+    user_admin_routes,
 )
 from app.services.audit_service import AUTHORIZATION_DENIED, AuditService, client_ip
 from app.templating import render
@@ -92,6 +93,7 @@ def create_app() -> FastAPI:
     app.include_router(import_routes.router)
     app.include_router(grade_routes.router)
     app.include_router(pages_routes.router)
+    app.include_router(user_admin_routes.router)
     app.include_router(agent_routes.router)
     app.include_router(assistant_routes.router)
     app.include_router(profile_routes.router)

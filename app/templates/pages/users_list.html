@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import csrf_field %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="page-head"><h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1><p>{{ page_subtitle }}</p></div>
+
+<div class="card">
+  <form method="get" action="/users" class="filter-bar">
+    <div class="filter-item"><label for="q">Buscar</label>
+      <input class="form-control search-input" type="search" id="q" name="q" value="{{ q }}" placeholder="Nombre o correo" /></div>
+    <button class="btn btn-primary btn-sm" type="submit"><i class="bi bi-search"></i> Filtrar</button>
+    {% if q %}<a class="btn btn-outline btn-sm" href="/users"><i class="bi bi-x-lg"></i> Limpiar</a>{% endif %}
+  </form>
+  <div class="result-count" style="margin-bottom:10px">{{ users|length }} resultado(s)</div>
+
+  {% if users %}
+  <div class="table-scroll"><table class="data">
+    <thead><tr><th>Usuario</th><th>Roles actuales</th><th>Agregar rol</th></tr></thead>
+    <tbody>
+    {% for u in users %}
+    {% set held = roles_by_user[u.id] %}
+    {% set held_codes = held | map(attribute='code') | list %}
+    <tr>
+      <td>{{ u.full_name }}<br><small style="color:var(--text-muted)">{{ u.email }}</small></td>
+      <td style="display:flex; flex-wrap:wrap; gap:6px">
+        {% for r in held %}
+        <span class="chip chip-info" style="display:inline-flex; align-items:center; gap:6px">
+          {{ r.name }}
+          {% if held_codes | length > 1 %}
+          <form method="post" action="/users/{{ u.id }}/roles/{{ r.code }}/revoke" style="margin:0" onsubmit="return confirm('¿Retirar el rol {{ r.name }} de {{ u.full_name }}?')">
+            {{ csrf_field(csrf_token) }}
+            <button type="submit" style="background:none; border:0; cursor:pointer; padding:0; color:inherit; opacity:.7" title="Retirar rol"><i class="bi bi-x-circle"></i></button>
+          </form>
+          {% endif %}
+        </span>
+        {% endfor %}
+      </td>
+      <td style="display:flex; flex-wrap:wrap; gap:6px">
+        {% for code in managed_roles %}
+        {% if code not in held_codes %}
+          {% if code in profile_free_roles %}
+          <form method="post" action="/users/{{ u.id }}/roles/{{ code }}/grant" style="margin:0">
+            {{ csrf_field(csrf_token) }}
+            <button type="submit" class="btn btn-outline btn-sm"><i class="bi bi-plus-lg"></i> {{ role_names.get(code, code) }}</button>
+          </form>
+          {% else %}
+          <a class="btn btn-outline btn-sm" href="/users/{{ u.id }}/roles/add?role={{ code }}"><i class="bi bi-plus-lg"></i> {{ role_names.get(code, code) }}</a>
+          {% endif %}
+        {% endif %}
+        {% endfor %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}
+  <div class="empty-state"><div class="es-icon"><i class="bi bi-search"></i></div><h3>Sin resultados</h3>
+    <p>No se encontraron usuarios.</p></div>
+  {% endif %}
+</div>
+{% endblock %}

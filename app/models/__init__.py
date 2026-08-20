@@ -33,7 +33,7 @@ from app.models.organization import (
     TutorProfile,
 )
 from app.models.student import Student
-from app.models.user import Role, User
+from app.models.user import Role, User, UserRole
 
 __all__ = [
     "AcademicPeriod",
@@ -67,4 +67,5 @@ __all__ = [
     "Student",
     "Role",
     "User",
+    "UserRole",
 ]

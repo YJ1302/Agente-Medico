@@ -94,6 +94,10 @@ class _StaffBase:
                     hashed_password=hashed, role_id=role.id)
         self.repos.users.add(user)
         self.db.flush()
+        # Keep the multi-role grant table in sync with the account's default
+        # role, so `roles_for_user()` never needs its zero-grants fallback
+        # for a normally-created account.
+        self.repos.user_roles.grant(user.id, role.id)
         return user, generated
 
     def _email_taken(self, email: str) -> bool:
@@ -141,12 +145,16 @@ class CoordinatorService(_StaffBase):
                 "alerts": alerts, "audit_rows": audit_rows,
                 "can_manage": self.can_manage(), "can_deactivate": self.can_manage()}
 
-    def _validate(self, data: dict, *, existing: SedeCoordinatorProfile | None) -> dict:
+    def _validate(self, data: dict, *, existing: SedeCoordinatorProfile | None,
+                  attach_user: User | None = None) -> dict:
+        """See ``TutorService._validate`` for what ``attach_user`` does."""
         v = FieldValidator()
         full_name = v.required("full_name", data.get("full_name"), "El nombre")
         email = v.email("email", data.get("email"))
         if not email:
             v.add("email", "El correo es obligatorio.")
+        elif attach_user is not None and email.lower() == attach_user.email.lower():
+            pass
         elif existing is None or email.lower() != (existing.user.email.lower() if existing else ""):
             if self._email_taken(email):
                 v.add("email", "El correo ya está registrado.")
@@ -158,9 +166,11 @@ class CoordinatorService(_StaffBase):
                 "specialty": (data.get("specialty") or "").strip() or None,
                 "office_phone": (data.get("office_phone") or "").strip() or None}
 
-    def create(self, data: dict, *, replace: bool = False, ip: str | None = None):
+    def create(self, data: dict, *, replace: bool = False, ip: str | None = None,
+              existing_user: User | None = None):
+        """``existing_user``: see ``TutorService.create``."""
         ensure(self.can_manage(), "No puede crear coordinadores.", "create_coord_denied")
-        clean = self._validate(data, existing=None)
+        clean = self._validate(data, existing=None, attach_user=existing_user)
         # Principal replacement guard.
         current = self.repos.sede_coordinators.active_principal_for_sede(clean["sede_id"])
         if current and not replace:
@@ -168,9 +178,14 @@ class CoordinatorService(_StaffBase):
                 "sede_id": "La sede ya tiene un coordinador principal activo "
                            f"({current.user.full_name}). Marque «reemplazar» para continuar."
             })
-        user, generated = self._create_user(
-            full_name=clean["full_name"], email=clean["email"], phone=clean["phone"],
-            role_code=ROLE_SEDE_COORDINATOR, password=data.get("password"))
+        if existing_user is not None:
+            user, generated = existing_user, ""
+            role = self.repos.roles.get_by_code(ROLE_SEDE_COORDINATOR)
+            self.repos.user_roles.grant(user.id, role.id)
+        else:
+            user, generated = self._create_user(
+                full_name=clean["full_name"], email=clean["email"], phone=clean["phone"],
+                role_code=ROLE_SEDE_COORDINATOR, password=data.get("password"))
         coord = SedeCoordinatorProfile(
             user_id=user.id, sede_id=clean["sede_id"], specialty=clean["specialty"],
             office_phone=clean["office_phone"], is_principal=True, is_active=True)
@@ -307,12 +322,19 @@ class TutorService(_StaffBase):
                 "can_manage": self.can_manage(),
                 "can_edit_fields": self.can_manage_sede_fields(tutor)}
 
-    def _validate(self, data: dict, *, existing: TutorProfile | None) -> dict:
+    def _validate(self, data: dict, *, existing: TutorProfile | None,
+                  attach_user: User | None = None) -> dict:
+        """``attach_user`` (default None, so every existing caller is
+        unaffected): the row is granting the Tutor role to this already-
+        existing account rather than creating a new one — skip the
+        duplicate-email check for that one, expected match."""
         v = FieldValidator()
         full_name = v.required("full_name", data.get("full_name"), "El nombre")
         email = v.email("email", data.get("email"))
         if not email:
             v.add("email", "El correo es obligatorio.")
+        elif attach_user is not None and email.lower() == attach_user.email.lower():
+            pass
         elif existing is None or email.lower() != (existing.user.email.lower() if existing else ""):
             if self._email_taken(email):
                 v.add("email", "El correo ya está registrado.")
@@ -325,19 +347,29 @@ class TutorService(_StaffBase):
                 "service": (data.get("service") or "").strip() or None,
                 "contact_phone": (data.get("contact_phone") or "").strip() or None}
 
-    def create(self, data: dict, ip: str | None = None):
+    def create(self, data: dict, ip: str | None = None, existing_user: User | None = None):
+        """``existing_user`` grants the Tutor role (+ a new TutorProfile) to
+        an account that already exists under another role, instead of
+        creating a brand-new account — used when a Sede Coordinator (or any
+        other staff member) also tutors interns."""
         ensure(self.can_manage(), "No puede crear tutores.", "create_tutor_denied")
-        clean = self._validate(data, existing=None)
-        user, generated = self._create_user(
-            full_name=clean["full_name"], email=clean["email"], phone=clean["phone"],
-            role_code=ROLE_TUTOR, password=data.get("password"))
+        clean = self._validate(data, existing=None, attach_user=existing_user)
+        if existing_user is not None:
+            user, generated = existing_user, ""
+            role = self.repos.roles.get_by_code(ROLE_TUTOR)
+            self.repos.user_roles.grant(user.id, role.id)
+        else:
+            user, generated = self._create_user(
+                full_name=clean["full_name"], email=clean["email"], phone=clean["phone"],
+                role_code=ROLE_TUTOR, password=data.get("password"))
         tutor = TutorProfile(
             user_id=user.id, sede_id=clean["sede_id"], specialty=clean["specialty"],
             service=clean["service"], contact_phone=clean["contact_phone"], is_active=True)
         self.repos.tutors.add(tutor)
         self.db.flush()
         self.audit.record(audit.CREATE_TUTOR, identity=self.identity, entity_type="tutor",
-                          entity_id=tutor.id, detail={"email": user.email, "sede_id": clean["sede_id"]},
+                          entity_id=tutor.id, detail={"email": user.email, "sede_id": clean["sede_id"],
+                                                       "attached_existing_account": existing_user is not None},
                           ip_address=ip, commit=False)
         self.db.commit()
         return tutor, generated
