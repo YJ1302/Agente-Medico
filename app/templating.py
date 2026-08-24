@@ -21,6 +21,21 @@ from app.web import pop_flashes
 
 templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
 
+
+def _static_version(rel_path: str) -> str:
+    """Cache-busting token for a static asset: its own mtime.
+
+    Browsers/CDNs otherwise keep serving a stale cached copy of CSS/JS after
+    a deploy since the URL never changes. Appending ``?v=<mtime>`` changes
+    the URL whenever the file's content changes, with no manual bumping.
+    """
+    path = APP_DIR / "static" / rel_path
+    try:
+        return str(int(path.stat().st_mtime))
+    except OSError:
+        return "0"
+
+
 # Expose selected settings to all templates.
 templates.env.globals.update(
     app_name=settings.app_name,
@@ -28,6 +43,7 @@ templates.env.globals.update(
     institution_name=settings.institution_name,
     demo_mode=settings.demo_mode,
     current_year=datetime.now().year,
+    static_version=_static_version,
 )
 
 
