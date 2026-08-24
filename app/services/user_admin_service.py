@@ -16,9 +16,12 @@ roles, kept separate rather than forced into this one.
 
 from __future__ import annotations
 
+import secrets
+
 from sqlalchemy.orm import Session
 
 from app.authorization import ensure, is_admin
+from app.config import settings
 from app.models.user import (
     ROLE_ADMIN,
     ROLE_SEDE_COORDINATOR,
@@ -27,10 +30,11 @@ from app.models.user import (
     User,
 )
 from app.repositories.repositories import RepositoryBundle
+from app.security import hash_password
 from app.services import audit_service as audit
 from app.services.audit_service import AuditService
 from app.services.auth_service import Identity
-from app.services.validators import ValidationError
+from app.services.validators import FieldValidator, ValidationError
 
 # Roles manageable from the Users & Roles screen (see module docstring for
 # why Student is excluded).
@@ -60,6 +64,45 @@ class UserAdminService:
 
     def roles_for(self, user: User) -> list:
         return self.repos.user_roles.roles_for_user(user.id)
+
+    def create_profile_free_user(self, data: dict, role_code: str,
+                                 ip: str | None = None) -> tuple[User, str]:
+        """Create a brand-new account holding a profile-free role (Admin or
+        University Coordinator) — the counterpart to ``CoordinatorService.create()``
+        / ``TutorService.create()`` for roles that carry no profile row.
+        Returns (user, generated_password) so the caller can show the
+        temporary password once, same as the other staff-creation flows.
+        """
+        ensure(self.can_manage(), "No puede crear usuarios.", "create_user_denied")
+        if role_code not in PROFILE_FREE_ROLES:
+            raise ValidationError({"role": "Este rol requiere datos adicionales (sede)."})
+        v = FieldValidator()
+        full_name = v.required("full_name", data.get("full_name"), "El nombre")
+        email = v.email("email", data.get("email"))
+        if not email:
+            v.add("email", "El correo es obligatorio.")
+        elif self.repos.users.get_by_email(email) is not None:
+            v.add("email", "El correo ya está registrado.")
+        v.raise_if_errors()
+        phone = (data.get("phone") or "").strip() or None
+
+        role = self.repos.roles.get_by_code(role_code)
+        ensure(role is not None, "Rol no configurado.", "role_missing")
+        password = (data.get("password") or "").strip()
+        generated = ""
+        if not password:
+            password = "Demo123!" if settings.demo_mode else secrets.token_urlsafe(9)
+            generated = password
+        user = User(email=email, full_name=full_name, phone=phone,
+                    hashed_password=hash_password(password), role_id=role.id)
+        self.repos.users.add(user)
+        self.db.flush()
+        self.repos.user_roles.grant(user.id, role.id)
+        self.audit.record(audit.CREATE_USER, identity=self.identity, entity_type="user",
+                          entity_id=user.id, detail={"email": email, "role": role_code},
+                          ip_address=ip, commit=False)
+        self.db.commit()
+        return user, generated
 
     def grant_profile_free_role(self, user_id: int, role_code: str,
                                 ip: str | None = None) -> None:

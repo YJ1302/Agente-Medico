@@ -46,6 +46,43 @@ def list_users(request: Request, identity: Identity = Depends(require_admin),
                   profile_roles=PROFILE_ROLES, role_names=role_names, q=q)
 
 
+@router.get("/users/new")
+def new_user_form(request: Request, identity: Identity = Depends(require_admin),
+                  db: Session = Depends(get_db)):
+    svc = UserAdminService(db, identity)
+    role_names = {r.code: r.name for r in svc.repos.roles.all_ordered()}
+    role_options = [(code, role_names.get(code, code)) for code in PROFILE_FREE_ROLES]
+    return render(request, "pages/user_new.html", identity=identity,
+                  page_title="Nuevo usuario", page_subtitle="Crear cuenta de Administrador o Coordinador Universitario.",
+                  page_icon="person-plus", role_options=role_options, form={}, errors={})
+
+
+@router.post("/users/new")
+async def create_user_submit(request: Request, identity: Identity = Depends(require_admin),
+                             db: Session = Depends(get_db), _: None = Depends(csrf_protect)):
+    svc = UserAdminService(db, identity)
+    role_names = {r.code: r.name for r in svc.repos.roles.all_ordered()}
+    role_options = [(code, role_names.get(code, code)) for code in PROFILE_FREE_ROLES]
+    form_data = await request.form()
+    form = {k: v for k, v in form_data.multi_items()}
+    role_code = form.get("role", "")
+    try:
+        if role_code not in PROFILE_FREE_ROLES:
+            raise ValidationError({"role": "Seleccione un rol válido."})
+        user, generated = svc.create_profile_free_user(form, role_code, ip=client_ip(request))
+    except ValidationError as e:
+        return render(request, "pages/user_new.html", identity=identity,
+                      page_title="Nuevo usuario",
+                      page_subtitle="Crear cuenta de Administrador o Coordinador Universitario.",
+                      page_icon="person-plus", role_options=role_options, form=form,
+                      errors=e.errors, status_code=400)
+    msg = f"Usuario «{user.full_name}» ({role_names.get(role_code, role_code)}) creado."
+    if generated:
+        msg += f" Contraseña temporal: {generated}"
+    flash(request, msg, FLASH_SUCCESS)
+    return RedirectResponse(url="/users", status_code=303)
+
+
 @router.post("/users/{user_id}/roles/{role_code}/grant")
 async def grant_role(user_id: int, role_code: str, request: Request,
                      identity: Identity = Depends(require_admin),

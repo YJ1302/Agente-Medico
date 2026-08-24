@@ -146,6 +146,7 @@ CREATE_ANNOUNCEMENT = "create_announcement"
 # account (e.g. a Sede Coordinator who also tutors interns).
 GRANT_ROLE = "grant_role"
 REVOKE_ROLE = "revoke_role"
+CREATE_USER = "create_user"
 
 # Phase 3A — AI Coordinator Assistant.
 AI_ASSISTANT_QUERY = "ai_assistant_query"

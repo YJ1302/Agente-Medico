@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import csrf_field, field, select_field, error_summary %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<nav class="result-count" style="margin-bottom:8px"><a href="/users">Usuarios y Roles</a> / Nuevo</nav>
+<div class="page-head"><h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1><p>{{ page_subtitle }}</p></div>
+
+<div class="card" style="max-width:760px">
+  {{ error_summary(errors) }}
+  <form method="post" action="/users/new" novalidate>
+    {{ csrf_field(csrf_token) }}
+    <div class="form-grid">
+      {{ field("full_name", "Nombre completo", form.get("full_name"), required=True, errors=errors) }}
+      {{ field("email", "Correo institucional", form.get("email"), type="email", required=True, errors=errors) }}
+      {{ field("phone", "Teléfono", form.get("phone"), errors=errors) }}
+      {{ select_field("role", "Rol", role_options, form.get("role"), required=True, errors=errors, empty_label="Seleccione…") }}
+      {{ field("password", "Contraseña (opcional)", "", type="password", errors=errors, help="Si se deja vacía, se genera una contraseña temporal.") }}
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit"><i class="bi bi-check-lg"></i> Crear cuenta</button>
+      <a class="btn btn-outline" href="/users">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
