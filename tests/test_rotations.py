@@ -164,6 +164,38 @@ def test_reject_duplicate_core_rotation_same_period(admin):
     assert "core" in r.text.lower() or "duplicad" in r.text.lower()
 
 
+def test_rotation_may_span_two_academic_periods(admin):
+    """A long rotation (e.g. Oct–Dec) that fully covers the chosen bimester is
+    accepted — the period is a calendar bucket, not a hard date boundary."""
+    sede, tutor, _ = _minsa_context()
+    rr = _repos()
+    set_oct = rr.periods.by_code("SET-OCT-2026")
+    nov_dic = rr.periods.by_code("NOV-DIC-2026")
+    sid = _fresh_student(sede)
+    p = _payload(sid, sede, set_oct, tutor.id)
+    p["start_date"] = set_oct.start_date.isoformat()
+    p["end_date"] = nov_dic.end_date.isoformat()  # 2 months past the Set-Oct period
+    r = _post_new(admin, p)
+    assert r.status_code in (302, 303), r.text[:800]
+
+
+def test_rotation_with_wrong_period_is_blocked_but_overridable(admin):
+    sede, tutor, _ = _minsa_context()
+    rr = _repos()
+    ene_feb = rr.periods.by_code("ENE-FEB-2026")
+    nov_dic = rr.periods.by_code("NOV-DIC-2026")
+    sid = _fresh_student(sede)
+    # Dates in Jan–Feb but the period says Nov–Dic → no overlap at all.
+    p = _payload(sid, sede, nov_dic, tutor.id)
+    p["start_date"] = ene_feb.start_date.isoformat()
+    p["end_date"] = (ene_feb.start_date + timedelta(days=20)).isoformat()
+    r = _post_new(admin, p)
+    assert r.status_code == 400
+    assert "no coinciden" in r.text.lower()
+    p["override_reason"] = "Fechas confirmadas con la universidad (demo)."
+    assert _post_new(admin, p).status_code in (302, 303)
+
+
 def test_reject_essalud_community_rotation(admin):
     rr = _repos()
     essalud_sede = next(s for s in rr.sedes.active() if s.institution_type.code == "ESSALUD")

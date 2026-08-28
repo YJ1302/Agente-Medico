@@ -3,6 +3,77 @@
 All notable changes to this project are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601.
 
+## [0.3.2] — Rotation form: period auto-fill & multi-period rotations
+
+**Removes the guesswork when picking "Periodo académico".**
+
+### Changed
+- `app/services/rotation_conflict_service.py` — the period/date-fit check (I)
+  now measures **overlap** between the rotation and the chosen period instead
+  of "days outside". A rotation may legitimately span two bimonthly periods
+  (e.g. Oct–Dec covers Set-Oct and Nov-Dic); it is only flagged when the
+  overlap is under `ROTATION_PERIOD_MIN_OVERLAP_DAYS` (7, new) and BLOCKED
+  (override-able) only when there is no overlap at all. `_days_outside` →
+  `_overlap_days`. `ROTATION_PERIOD_WARNING_DAYS` / `_BLOCK_DAYS` are now
+  deprecated (parsed but unused).
+- `app/templates/pages/rotation_form.html` — client-side sync between the
+  rotation dates and the period select: entering the dates auto-selects the
+  best-matching period (the one containing the start date, else max overlap),
+  and it only overrides a manual choice when that choice no longer overlaps
+  the dates. Picking a period while both date fields are empty fills them
+  with the period's range. Driven by a new `period_ranges` entry in
+  `RotationService.form_options()`.
+- `AcademicPeriodRepository.containing(day)` — the period whose range covers
+  a given date.
+
+### Tests
+2 new tests in `tests/test_rotations.py`: a rotation spanning two periods is
+accepted, and a rotation whose dates do not overlap the chosen period is
+blocked but override-able.
+
+## [0.3.1] — Academic period management & year rollover
+
+**Answers "how do we move to the next year without deleting everything?"**
+Nothing is deleted: interns, sedes, tutors, coordinators, rotation types and
+user accounts all carry over. Only period-scoped records (rotation assignments
+and their evaluations) are created fresh against the new year's periods.
+
+### Added
+- `app/services/period_service.py` — `PeriodService` (Admin / University
+  Coordinator only): list periods grouped by year with per-period rotation
+  counts, create/edit a single bimester, `set_current` (moves the single
+  platform-wide "current period" flag), `delete` (blocked once any rotation
+  references the period, and never the current one), and `generate_year(year)`
+  which creates all six standard bimonthly blocks in one action (idempotent —
+  re-running only fills gaps). `STANDARD_BIMESTERS` is the shared source of
+  truth for the Ene-Feb … Nov-Dic layout (previously inlined only in `seed.py`).
+- `app/routes/period_routes.py` — full CRUD at `/periods` (replaces the
+  placeholder page), plus `GET /set-period` — the new top-bar period switcher.
+  It only records a per-session viewing preference (mirrors `/set-lang`) and
+  never mutates data.
+- `app/templates/pages/periods_list.html`, `period_form.html` — management UI
+  with an "Abrir un nuevo año" panel.
+- Top-bar **academic period selector** (`partials/topbar.html`): pick "all
+  periods" or a specific one; Admin / University Coordinator get a "Gestionar
+  periodos" shortcut. `templating.render()` injects `active_period` /
+  `all_periods` for every authenticated page (read-only, defensive).
+- `AcademicPeriodRepository` — `latest()`, `by_code()`, `for_year()`,
+  `years()`, `assignment_count()`, `clear_current()`.
+- Audit actions: `create_academic_period`, `update_academic_period`,
+  `delete_academic_period`, `set_current_academic_period`,
+  `generate_academic_year`.
+
+### Changed
+- `GET /rotations` — when the URL carries no explicit `period`, the list now
+  defaults to the session's top-bar period selection (`period=all` or the
+  dropdown's "Todos" still shows every period). No schema change.
+
+### Tests
+12 new tests in `tests/test_periods.py`: role scope, six-bimester generation,
+idempotent re-run, generate-and-set-current, single-period CRUD with duplicate
+-code rejection, current-flag movement, deletion guard (empty vs in-use), and
+the `/set-period` switcher scoping the rotations list.
+
 ## [0.3.0-alpha.2] — Phase 3B · AI Coordinator Assistant — Gemini provider
 
 **Second AI provider (Google Gemini), preserving Anthropic** (complete, verified).

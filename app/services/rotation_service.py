@@ -393,12 +393,19 @@ class RotationService:
         if self.identity.role_code == ROLE_SEDE_COORDINATOR and not is_global_viewer(self.identity):
             allowed = self._own_sede_ids()
             sedes = [s for s in sedes if s.id in allowed]
+        periods = self.repos.periods.ordered()
         return {
             "students": [(s.id, f"{s.student_code} · {s.full_name}")
                          for s in self.repos.students.active()],
             "rotation_types": [(r.id, r.name) for r in self.repos.rotation_types.list()],
             "sedes": [(s.id, s.short_name or s.name) for s in sedes],
-            "periods": [(p.id, p.name) for p in self.repos.periods.ordered()],
+            "periods": [(p.id, p.name) for p in periods],
+            # Date ranges for the form's client-side period auto-selection.
+            "period_ranges": [
+                {"id": p.id, "start": p.start_date.isoformat(),
+                 "end": p.end_date.isoformat()}
+                for p in periods if p.start_date and p.end_date
+            ],
             "tutors": [(t.id, f"{t.user.full_name} · {t.sede.short_name if t.sede else ''}")
                        for t in self.repos.tutors.active()],
             "statuses": [("planned", "Planificada"), ("active", "Activa")],

@@ -542,6 +542,48 @@ class AcademicPeriodRepository(BaseRepository[AcademicPeriod]):
         )
         return list(self.db.execute(stmt).scalars().all())
 
+    def latest(self) -> AcademicPeriod | None:
+        stmt = select(AcademicPeriod).order_by(
+            AcademicPeriod.year.desc(), AcademicPeriod.ordinal.desc()
+        ).limit(1)
+        return self.db.execute(stmt).scalar_one_or_none()
+
+    def by_code(self, code: str) -> AcademicPeriod | None:
+        return self.db.execute(
+            select(AcademicPeriod).where(AcademicPeriod.code == code)
+        ).scalar_one_or_none()
+
+    def containing(self, day) -> AcademicPeriod | None:
+        """The period whose [start_date, end_date] range contains ``day``."""
+        stmt = select(AcademicPeriod).where(
+            AcademicPeriod.start_date <= day, AcademicPeriod.end_date >= day
+        ).order_by(AcademicPeriod.year, AcademicPeriod.ordinal).limit(1)
+        return self.db.execute(stmt).scalar_one_or_none()
+
+    def for_year(self, year: int) -> list[AcademicPeriod]:
+        stmt = select(AcademicPeriod).where(
+            AcademicPeriod.year == year
+        ).order_by(AcademicPeriod.ordinal)
+        return list(self.db.execute(stmt).scalars().all())
+
+    def years(self) -> list[int]:
+        stmt = select(AcademicPeriod.year).distinct().order_by(AcademicPeriod.year)
+        return list(self.db.execute(stmt).scalars().all())
+
+    def assignment_count(self, period_id: int) -> int:
+        return self.db.execute(
+            select(func.count())
+            .select_from(RotationAssignment)
+            .where(RotationAssignment.period_id == period_id,
+                   RotationAssignment.is_deleted.is_(False))
+        ).scalar_one()
+
+    def clear_current(self) -> None:
+        for p in self.db.execute(
+            select(AcademicPeriod).where(AcademicPeriod.is_current.is_(True))
+        ).scalars().all():
+            p.is_current = False
+
 
 class RotationAssignmentRepository(BaseRepository[RotationAssignment]):
     model = RotationAssignment

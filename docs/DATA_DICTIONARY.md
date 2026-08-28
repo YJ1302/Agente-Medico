@@ -112,9 +112,13 @@ All tables include `id` (integer PK). Most include `created_at`, `updated_at`
 | completed_at / cancelled_at / reopened_at | datetime | *(2B)* Lifecycle timestamps |
 | created_by_user_id / updated_by_user_id | FK users.id nullable | *(2B)* Actor traceability |
 
-> **Config (not columns):** `ROTATION_DURATION_TOLERANCE_RATIO` (0.4),
-> `ROTATION_PERIOD_WARNING_DAYS` (14), `ROTATION_PERIOD_BLOCK_DAYS` (60) drive
-> the unusual-duration and period-date conflict checks.
+> **Config (not columns):** `ROTATION_DURATION_TOLERANCE_RATIO` (0.4) drives
+> the unusual-duration check. `ROTATION_PERIOD_MIN_OVERLAP_DAYS` (7) drives the
+> period-date check: a rotation may span two bimonthly periods, so it is only
+> flagged when its overlap with the chosen period is below this many days, and
+> BLOCKED (override-able) only when there is no overlap at all.
+> `ROTATION_PERIOD_WARNING_DAYS` / `ROTATION_PERIOD_BLOCK_DAYS` are deprecated
+> (still parsed, no longer used).
 
 ## evaluations *(soft-delete)*
 | Column | Type | Notes |

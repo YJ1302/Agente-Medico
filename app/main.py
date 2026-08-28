@@ -38,6 +38,7 @@ from app.routes import (
     import_routes,
     incident_routes,
     pages_routes,
+    period_routes,
     profile_routes,
     report_routes,
     rotation_routes,
@@ -92,6 +93,7 @@ def create_app() -> FastAPI:
     app.include_router(report_routes.router)
     app.include_router(import_routes.router)
     app.include_router(grade_routes.router)
+    app.include_router(period_routes.router)
     app.include_router(pages_routes.router)
     app.include_router(user_admin_routes.router)
     app.include_router(agent_routes.router)

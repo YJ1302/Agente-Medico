@@ -53,6 +53,12 @@ _CHROME_EN = {
     "Notificaciones": "Notifications",
     "Idioma": "Language",
     "Traducir": "Translate",
+    # Academic period switcher
+    "Periodo académico": "Academic period",
+    "Ver periodo": "View period",
+    "Todos los periodos": "All periods",
+    "Gestionar periodos": "Manage periods",
+    "actual": "current",
 }
 
 

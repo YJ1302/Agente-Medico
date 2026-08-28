@@ -51,3 +51,55 @@
   </div>
 </div>
 {% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  // Keep "Periodo académico" in sync with the rotation dates. The period is a
+  // calendar bucket; a rotation may span two bimonthly periods, so we pick the
+  // one that best matches the dates and only override a manual choice when it
+  // no longer overlaps the dates at all.
+  var PERIODS = {{ options.period_ranges | tojson }};
+  var startEl = document.getElementById('f_start_date');
+  var endEl = document.getElementById('f_end_date');
+  var periodEl = document.getElementById('f_period_id');
+  if (!startEl || !endEl || !periodEl || !PERIODS.length) return;
+
+  function overlapDays(s, e, ps, pe) {
+    var a = s > ps ? s : ps, b = e < pe ? e : pe;
+    return Math.round((Date.parse(b) - Date.parse(a)) / 86400000) + 1;
+  }
+  function bestPeriod(s, e) {
+    // Prefer the period that contains the start date; otherwise the one with
+    // the largest overlap with [s, e].
+    var containing = PERIODS.filter(function (p) { return p.start <= s && s <= p.end; })[0];
+    if (containing) return containing;
+    var best = null, bestOv = 0;
+    PERIODS.forEach(function (p) {
+      var ov = overlapDays(s, e, p.start, p.end);
+      if (ov > bestOv) { bestOv = ov; best = p; }
+    });
+    return best;
+  }
+  function currentOverlapsDates(s, e) {
+    var sel = PERIODS.filter(function (p) { return String(p.id) === periodEl.value; })[0];
+    return sel && overlapDays(s, e, sel.start, sel.end) > 0;
+  }
+  function syncPeriodFromDates() {
+    var s = startEl.value, e = endEl.value || startEl.value;
+    if (!s) return;
+    if (periodEl.value && currentOverlapsDates(s, e)) return;  // respect a valid manual pick
+    var p = bestPeriod(s, e);
+    if (p) periodEl.value = String(p.id);
+  }
+  function syncDatesFromPeriod() {
+    if (startEl.value || endEl.value) return;  // never overwrite entered dates
+    var sel = PERIODS.filter(function (p) { return String(p.id) === periodEl.value; })[0];
+    if (sel) { startEl.value = sel.start; endEl.value = sel.end; }
+  }
+  startEl.addEventListener('change', syncPeriodFromDates);
+  endEl.addEventListener('change', syncPeriodFromDates);
+  periodEl.addEventListener('change', syncDatesFromPeriod);
+})();
+</script>
+{% endblock %}

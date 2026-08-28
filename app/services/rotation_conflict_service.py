@@ -129,19 +129,27 @@ class RotationConflictService:
                     "Los internos de EsSalud no pueden recibir la rotación "
                     "comunitaria (MINSA).", True, can_override=True))
 
-        # I. Period/date fit — warn if slightly outside, block if far outside.
+        # I. Period/date fit — the academic period is a calendar bucket, not a
+        # hard boundary. A rotation may legitimately span two bimonthly periods
+        # (e.g. Oct–Dec covers Set-Oct and Nov-Dic). Only flag it when the
+        # rotation and the chosen period barely overlap, and block only when
+        # they do not overlap at all (almost certainly the wrong period).
         if period and data.start_date and data.end_date and period.start_date and period.end_date:
-            out = _days_outside(data.start_date, data.end_date,
-                                period.start_date, period.end_date)
-            if out > settings.rotation_period_block_days:
+            overlap = _overlap_days(data.start_date, data.end_date,
+                                    period.start_date, period.end_date)
+            if overlap <= 0:
                 conflicts.append(self._c(PERIOD_DATE_MISMATCH, "critical",
                     "Fechas fuera del periodo",
-                    f"Las fechas están {out} días fuera del periodo "
-                    f"«{period.name}».", True, can_override=True))
-            elif out > settings.rotation_period_warning_days:
+                    f"Las fechas ({data.start_date:%d/%m/%Y}–{data.end_date:%d/%m/%Y}) "
+                    f"no coinciden con «{period.name}» "
+                    f"({period.start_date:%d/%m/%Y}–{period.end_date:%d/%m/%Y}). "
+                    "¿Seleccionó el periodo correcto?", True, can_override=True))
+            elif overlap < settings.rotation_period_min_overlap_days:
                 conflicts.append(self._c(PERIOD_DATE_MISMATCH, "warning",
-                    "Fechas ligeramente fuera del periodo",
-                    f"Las fechas exceden el periodo en {out} días.", False))
+                    "Coincidencia mínima con el periodo",
+                    f"La rotación solo coincide {overlap} día(s) con "
+                    f"«{period.name}». Verifique que el periodo sea el correcto.",
+                    False))
 
         # J. Tutor workload — warning only.
         if tutor:
@@ -194,8 +202,12 @@ def _overlaps(a1: date, a2: date, b1: date, b2: date) -> bool:
     return a1 <= b2 and b1 <= a2
 
 
-def _days_outside(s: date, e: date, ps: date, pe: date) -> int:
-    """How many days the [s,e] range falls outside the period [ps,pe]."""
-    before = (ps - s).days if s < ps else 0
-    after = (e - pe).days if e > pe else 0
-    return max(0, before) + max(0, after)
+def _overlap_days(s: date, e: date, ps: date, pe: date) -> int:
+    """Number of days the rotation [s,e] overlaps the period [ps,pe].
+
+    Inclusive of both endpoints; 0 or negative means the two ranges are
+    disjoint.
+    """
+    latest_start = max(s, ps)
+    earliest_end = min(e, pe)
+    return (earliest_end - latest_start).days + 1

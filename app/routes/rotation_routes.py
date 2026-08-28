@@ -43,10 +43,17 @@ def _filters(q, period, rtype, sede, tutor, student, status, institution, tutorf
 @router.get("/rotations")
 def list_rotations(request: Request, identity: Identity = Depends(require_identity),
                    db: Session = Depends(get_db),
-                   q: str = "", period: str = "", rtype: str = "", sede: str = "",
+                   q: str = "", period: str | None = None, rtype: str = "", sede: str = "",
                    tutor: str = "", student: str = "", status: str = "",
                    institution: str = "", tutorflag: str = "", page: int = 1):
     svc = RotationService(db, identity)
+    # No explicit ``period`` in the URL → fall back to the top-bar period
+    # selection for this session (empty string / "all" means "every period").
+    if period is None:
+        chosen = request.session.get("period_id")
+        period = str(chosen) if chosen else ""
+    elif period == "all":
+        period = ""
     filters = _filters(q, period, rtype, sede, tutor, student, status, institution, tutorflag)
     rows = svc.list_assignments(**filters)
     # Attach a lightweight conflict flag per row (has any current conflict).

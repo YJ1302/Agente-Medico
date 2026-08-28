@@ -153,6 +153,13 @@ AI_ASSISTANT_QUERY = "ai_assistant_query"
 AI_ASSISTANT_RESPONSE = "ai_assistant_response"
 AI_ASSISTANT_RATE_LIMITED = "ai_assistant_rate_limited"
 
+# Academic periods — year rollover / period management.
+CREATE_ACADEMIC_PERIOD = "create_academic_period"
+UPDATE_ACADEMIC_PERIOD = "update_academic_period"
+DELETE_ACADEMIC_PERIOD = "delete_academic_period"
+SET_CURRENT_ACADEMIC_PERIOD = "set_current_academic_period"
+GENERATE_ACADEMIC_YEAR = "generate_academic_year"
+
 AUTHORIZATION_DENIED = "authorization_denied"
 
 # Keys never allowed inside an audit detail payload.

@@ -87,8 +87,14 @@ class Settings(BaseSettings):
     # rotation type's expected duration by more than this ratio triggers an
     # "unusual duration" warning (not a block).
     rotation_duration_tolerance_ratio: float = 0.4
-    # Period/date fit: dates outside the academic period by up to this many days
-    # produce a WARNING; beyond the hard limit they are BLOCKED (override-able).
+    # Period/date fit: the academic period is a calendar bucket, not a hard
+    # boundary — a rotation may legitimately span two bimonthly periods (e.g.
+    # Oct–Dec). The chosen period is only flagged when its overlap with the
+    # rotation dates is below this many days (likely the wrong period), and
+    # BLOCKED (override-able) only when there is no overlap at all.
+    rotation_period_min_overlap_days: int = 7
+    # Deprecated (kept for backward-compatible env parsing; no longer used by
+    # the conflict engine): superseded by ``rotation_period_min_overlap_days``.
     rotation_period_warning_days: int = 14
     rotation_period_block_days: int = 60
 

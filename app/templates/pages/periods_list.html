@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% from "partials/forms.html" import csrf_field %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="detail-head">
+  <div class="page-head" style="margin:0"><h1><i class="bi bi-{{ page_icon }}"></i> {{ page_title }}</h1><p>{{ page_subtitle }}</p></div>
+  {% if can_manage %}
+  <div class="actions">
+    <a class="btn btn-outline" href="/periods/new"><i class="bi bi-calendar-plus"></i> Nuevo periodo</a>
+  </div>
+  {% endif %}
+</div>
+
+<div class="flash flash-info" style="margin-bottom:16px"><i class="bi bi-info-circle"></i>
+  <span><strong>Cambio de año sin pérdida de datos:</strong> genere aquí los {{ bimester_count }} bimestres
+  del nuevo año y márquelo como actual. Los internos, sedes, tutores y cuentas se mantienen; solo las
+  rotaciones y evaluaciones se registran de nuevo contra los periodos nuevos.</span></div>
+
+{% if can_manage %}
+<div class="card" style="margin-bottom:16px">
+  <h3 style="margin-top:0"><i class="bi bi-magic"></i> Abrir un nuevo año</h3>
+  <form method="post" action="/periods/generate-year" class="filter-bar" style="align-items:flex-end">
+    {{ csrf_field(csrf_token) }}
+    <div class="filter-item"><label for="gen_year">Año</label>
+      <input class="form-control" type="number" id="gen_year" name="year" value="{{ next_year }}"
+             min="2000" max="2100" style="max-width:120px" required /></div>
+    <label class="filter-item" style="flex-direction:row; align-items:center; gap:6px">
+      <input type="checkbox" name="set_current" value="1" />
+      <span>Marcar el primer bimestre como periodo actual</span></label>
+    <button class="btn btn-primary btn-sm" type="submit"><i class="bi bi-calendar-range"></i> Generar {{ bimester_count }} bimestres</button>
+  </form>
+  <small class="form-help">Si el año ya tiene algunos periodos, solo se crean los que falten.</small>
+</div>
+{% endif %}
+
+{% for g in groups %}
+<div class="card" style="margin-bottom:14px">
+  <h3 style="margin-top:0; display:flex; align-items:center; gap:8px">
+    Año {{ g.year }}
+    {% if g.has_current %}<span class="chip chip-success">Periodo actual aquí</span>{% endif %}
+    {% if not g.complete %}<span class="chip chip-warning">Incompleto ({{ g.rows|length }}/{{ bimester_count }})</span>{% endif %}
+  </h3>
+  <div class="table-scroll"><table class="data">
+    <thead><tr><th>#</th><th>Nombre</th><th>Código</th><th>Fechas</th><th>Rotaciones</th><th>Estado</th><th></th></tr></thead>
+    <tbody>
+      {% for r in g.rows %}
+      {% set p = r.period %}
+      <tr>
+        <td>{{ p.ordinal }}</td>
+        <td>{{ p.name }}</td>
+        <td><code>{{ p.code }}</code></td>
+        <td style="white-space:nowrap">{{ p.start_date.strftime('%d/%m/%Y') }} – {{ p.end_date.strftime('%d/%m/%Y') }}</td>
+        <td>{{ r.assignments }}</td>
+        <td>{% if p.is_current %}<span class="chip chip-success">Actual</span>{% else %}<span class="chip chip-muted">—</span>{% endif %}</td>
+        <td style="white-space:nowrap; text-align:right">
+          {% if can_manage %}
+          <a class="btn btn-outline btn-sm" href="/periods/{{ p.id }}/edit" title="Editar"><i class="bi bi-pencil"></i></a>
+          {% if not p.is_current %}
+          <form method="post" action="/periods/{{ p.id }}/set-current" style="display:inline">
+            {{ csrf_field(csrf_token) }}
+            <button class="btn btn-outline btn-sm" type="submit" title="Marcar como periodo actual"><i class="bi bi-star"></i></button>
+          </form>
+          {% endif %}
+          {% if r.assignments == 0 and not p.is_current %}
+          <form method="post" action="/periods/{{ p.id }}/delete" style="display:inline"
+                onsubmit="return confirm('¿Eliminar el periodo «{{ p.name }}»?');">
+            {{ csrf_field(csrf_token) }}
+            <button class="btn btn-outline btn-sm" type="submit" title="Eliminar"><i class="bi bi-trash"></i></button>
+          </form>
+          {% endif %}
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% else %}
+<div class="card"><div class="empty-state"><div class="es-icon"><i class="bi bi-calendar3"></i></div>
+  <h3>Sin periodos</h3><p>Genere el primer año para empezar.</p></div></div>
+{% endfor %}
+{% endblock %}

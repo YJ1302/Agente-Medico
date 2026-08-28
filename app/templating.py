@@ -47,6 +47,47 @@ templates.env.globals.update(
 )
 
 
+def _period_context(request: Request) -> dict:
+    """Top-bar period switcher data: every period plus the one in effect.
+
+    The "active" period is the per-session choice from ``/set-period`` when set,
+    otherwise the institution's current period. Read-only and defensive — a DB
+    hiccup here must never break page rendering.
+    """
+    from types import SimpleNamespace
+
+    try:
+        from app.database import SessionLocal
+        from app.repositories.repositories import AcademicPeriodRepository
+
+        db = SessionLocal()
+        try:
+            repo = AcademicPeriodRepository(db)
+            # Detach from the ORM immediately — the session closes before the
+            # template renders, so hand the view plain objects.
+            periods = [
+                SimpleNamespace(id=p.id, name=p.name, code=p.code, year=p.year,
+                                ordinal=p.ordinal, is_current=p.is_current)
+                for p in reversed(repo.ordered())  # newest first for the menu
+            ]
+        finally:
+            db.close()
+    except Exception:  # pragma: no cover - defensive
+        return {"all_periods": [], "active_period": None,
+                "active_period_pinned": False, "institution_period": None}
+
+    chosen_id = request.session.get("period_id")
+    active = next((p for p in periods if p.id == chosen_id), None)
+    institution_current = next((p for p in periods if p.is_current), None)
+    return {
+        "all_periods": periods,
+        "active_period": active or institution_current or (
+            periods[0] if periods else None),
+        "active_period_pinned": active is not None,
+        "institution_period": institution_current,
+    }
+
+
 def render(
     request: Request,
     template_name: str,
@@ -66,6 +107,8 @@ def render(
         "lang": lang,
         "t": make_translator(lang),
     }
+    if identity is not None:
+        base_context.update(_period_context(request))
     base_context.update(context)
     return templates.TemplateResponse(
         template_name, base_context, status_code=status_code

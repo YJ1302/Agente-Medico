@@ -10,6 +10,34 @@
 
   <div class="spacer"></div>
 
+  <!-- Academic period switcher -->
+  {% if all_periods %}
+  <div class="dropdown">
+    <button class="icon-btn lang-btn" data-dropdown="periodMenu" title="{{ t('Periodo académico') }}">
+      <i class="bi bi-calendar3"></i>
+      {{ active_period.name if active_period else t('Todos los periodos') }}
+      {% if not active_period_pinned %}<span class="chip chip-muted" style="margin-left:4px">{{ t('actual') }}</span>{% endif %}
+    </button>
+    <div class="dropdown-menu" id="periodMenu" style="min-width:230px">
+      <div style="font-weight:700; padding:8px 11px; color:var(--navy)">{{ t('Ver periodo') }}</div>
+      <a href="/set-period?period=all&next={{ active_path }}">
+        <i class="bi bi-check2{{ '' if not active_period_pinned else '-square' }}"></i> {{ t('Todos los periodos') }}
+      </a>
+      {% for p in all_periods %}
+      <a href="/set-period?period={{ p.id }}&next={{ active_path }}">
+        <i class="bi bi-check2{{ '' if (active_period and active_period.id == p.id and active_period_pinned) else '-square' }}"></i>
+        {{ p.name }}{% if p.is_current %} · {{ t('actual') }}{% endif %}
+      </a>
+      {% endfor %}
+      {% if identity.role_code in ('admin', 'university_coordinator') %}
+      <a href="/periods" style="justify-content:center; color:var(--blue); font-weight:600; border-top:1px solid var(--border); margin-top:4px; padding-top:10px">
+        <i class="bi bi-gear"></i> {{ t('Gestionar periodos') }}
+      </a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Language toggle (ES / EN chrome) -->
   <div class="dropdown">
     <button class="icon-btn lang-btn" data-dropdown="langMenu" title="{{ t('Idioma') }}">
