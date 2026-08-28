@@ -553,13 +553,6 @@ class AcademicPeriodRepository(BaseRepository[AcademicPeriod]):
             select(AcademicPeriod).where(AcademicPeriod.code == code)
         ).scalar_one_or_none()
 
-    def containing(self, day) -> AcademicPeriod | None:
-        """The period whose [start_date, end_date] range contains ``day``."""
-        stmt = select(AcademicPeriod).where(
-            AcademicPeriod.start_date <= day, AcademicPeriod.end_date >= day
-        ).order_by(AcademicPeriod.year, AcademicPeriod.ordinal).limit(1)
-        return self.db.execute(stmt).scalar_one_or_none()
-
     def for_year(self, year: int) -> list[AcademicPeriod]:
         stmt = select(AcademicPeriod).where(
             AcademicPeriod.year == year

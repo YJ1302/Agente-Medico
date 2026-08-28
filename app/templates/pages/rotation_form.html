@@ -24,15 +24,24 @@
         <input type="hidden" name="status" value="{{ form.get('status') }}" />
         <div class="full alert alert-info"><i class="bi bi-info-circle"></i>
           Rotación activa: solo puede modificar tutor, fecha de término y notas.</div>
+        {{ field("end_date", "Fecha de término", form.get("end_date"), type="date", errors=errors) }}
       {% else %}
         {{ select_field("student_id", "Interno", options.students, form.get("student_id"), required=True, errors=errors, empty_label="Seleccione…") }}
         {{ select_field("rotation_type_id", "Rotación", options.rotation_types, form.get("rotation_type_id"), required=True, errors=errors, empty_label="Seleccione…") }}
         {{ select_field("sede_id", "Sede", options.sedes, form.get("sede_id"), required=True, errors=errors, empty_label="Seleccione…") }}
-        {{ select_field("period_id", "Periodo académico", options.periods, form.get("period_id"), required=True, errors=errors, empty_label="Seleccione…") }}
-        {{ field("start_date", "Fecha de inicio", form.get("start_date"), type="date", errors=errors) }}
+        {{ field("start_date", "Fecha de inicio", form.get("start_date"), type="date", required=True, errors=errors) }}
+        {{ field("end_date", "Fecha de término", form.get("end_date"), type="date", required=True, errors=errors) }}
+        <div class="form-group {% if errors.get('period_id') %}has-error{% endif %}">
+          <label class="form-label">Periodo académico</label>
+          <input type="hidden" name="period_id" id="f_period_id" value="{{ form.get('period_id') or '' }}" />
+          <input class="form-control" id="f_period_label" readonly
+                 style="background:var(--bg-muted,#f4f4f5);color:var(--text-muted)"
+                 value="Se calcula de las fechas" />
+          <small class="form-help">Se asigna automáticamente según las fechas de la rotación.</small>
+          {% if errors.get('period_id') %}<small class="form-error">{{ errors.get('period_id') }}</small>{% endif %}
+        </div>
         {{ select_field("status", "Estado", options.statuses, form.get("status"), errors=errors) }}
       {% endif %}
-      {{ field("end_date", "Fecha de término", form.get("end_date"), type="date", errors=errors) }}
       {{ select_field("tutor_id", "Tutor (opcional)", options.tutors, form.get("tutor_id"), errors=errors, empty_label="Sin tutor (se generará alerta)") }}
       <div class="full">
         <div class="form-group"><label class="form-label" for="f_notes">Notas</label>
@@ -55,14 +64,15 @@
 {% block scripts %}
 <script>
 (function () {
-  // Keep "Periodo académico" in sync with the rotation dates. The period is a
-  // calendar bucket; a rotation may span two bimonthly periods, so we pick the
-  // one that best matches the dates and only override a manual choice when it
-  // no longer overlaps the dates at all.
+  // The user only enters the dates; the academic period is derived from them
+  // and shown read-only. A rotation may span two bimonthly periods, so we pick
+  // the one containing the start date, else the one with the largest overlap.
+  // The server re-derives it authoritatively on submit.
   var PERIODS = {{ options.period_ranges | tojson }};
   var startEl = document.getElementById('f_start_date');
   var endEl = document.getElementById('f_end_date');
   var periodEl = document.getElementById('f_period_id');
+  var labelEl = document.getElementById('f_period_label');
   if (!startEl || !endEl || !periodEl || !PERIODS.length) return;
 
   function overlapDays(s, e, ps, pe) {
@@ -70,8 +80,6 @@
     return Math.round((Date.parse(b) - Date.parse(a)) / 86400000) + 1;
   }
   function bestPeriod(s, e) {
-    // Prefer the period that contains the start date; otherwise the one with
-    // the largest overlap with [s, e].
     var containing = PERIODS.filter(function (p) { return p.start <= s && s <= p.end; })[0];
     if (containing) return containing;
     var best = null, bestOv = 0;
@@ -81,25 +89,16 @@
     });
     return best;
   }
-  function currentOverlapsDates(s, e) {
-    var sel = PERIODS.filter(function (p) { return String(p.id) === periodEl.value; })[0];
-    return sel && overlapDays(s, e, sel.start, sel.end) > 0;
-  }
-  function syncPeriodFromDates() {
+  function render() {
     var s = startEl.value, e = endEl.value || startEl.value;
-    if (!s) return;
-    if (periodEl.value && currentOverlapsDates(s, e)) return;  // respect a valid manual pick
+    if (!s) { periodEl.value = ''; if (labelEl) labelEl.value = 'Se calcula de las fechas'; return; }
     var p = bestPeriod(s, e);
-    if (p) periodEl.value = String(p.id);
+    if (p) { periodEl.value = String(p.id); if (labelEl) labelEl.value = p.name; }
+    else if (labelEl) { labelEl.value = 'Sin periodo para esas fechas'; }
   }
-  function syncDatesFromPeriod() {
-    if (startEl.value || endEl.value) return;  // never overwrite entered dates
-    var sel = PERIODS.filter(function (p) { return String(p.id) === periodEl.value; })[0];
-    if (sel) { startEl.value = sel.start; endEl.value = sel.end; }
-  }
-  startEl.addEventListener('change', syncPeriodFromDates);
-  endEl.addEventListener('change', syncPeriodFromDates);
-  periodEl.addEventListener('change', syncDatesFromPeriod);
+  startEl.addEventListener('change', render);
+  endEl.addEventListener('change', render);
+  render();  // reflect any values the form came back with
 })();
 </script>
 {% endblock %}

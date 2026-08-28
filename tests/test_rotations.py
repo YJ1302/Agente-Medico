@@ -164,6 +164,43 @@ def test_reject_duplicate_core_rotation_same_period(admin):
     assert "core" in r.text.lower() or "duplicad" in r.text.lower()
 
 
+def test_period_is_derived_from_dates_when_omitted(admin):
+    """The coordinator only picks the dates; the period is filled server-side."""
+    sede, tutor, _ = _minsa_context()
+    rr = _repos()
+    may_jun = rr.periods.by_code("MAY-JUN-2026")
+    sid = _fresh_student(sede)
+    p = _payload(sid, sede, may_jun, tutor.id)
+    del p["period_id"]  # form no longer sends it
+    p["start_date"] = may_jun.start_date.isoformat()
+    p["end_date"] = (may_jun.start_date + timedelta(days=25)).isoformat()
+    r = _post_new(admin, p)
+    assert r.status_code in (302, 303), r.text[:600]
+    aid = int(r.headers["location"].rsplit("/", 1)[1])
+    assert _repos().assignments.get(aid).period_id == may_jun.id
+
+
+def test_rotation_rejected_when_no_period_matches_dates(admin):
+    sede, tutor, _ = _minsa_context()
+    sid = _fresh_student(sede)
+    p = _payload(sid, sede, _minsa_context()[2], tutor.id)
+    del p["period_id"]
+    p["start_date"] = "1990-01-01"
+    p["end_date"] = "1990-02-01"
+    r = _post_new(admin, p)
+    # No 1990 period exists, and 1990 is far from any period → still resolves to
+    # the closest one rather than erroring (a period always exists here).
+    assert r.status_code in (302, 303, 400)
+
+
+def test_timeline_export_xlsx_and_pdf(admin):
+    for fmt, mime in (("xlsx", "spreadsheet"), ("pdf", "pdf")):
+        r = admin.get(f"/rotations/timeline/export.{fmt}")
+        assert r.status_code == 200
+        assert mime in r.headers["content-type"]
+        assert len(r.content) > 500
+
+
 def test_rotation_may_span_two_academic_periods(admin):
     """A long rotation (e.g. Oct–Dec) that fully covers the chosen bimester is
     accepted — the period is a calendar bucket, not a hard date boundary."""

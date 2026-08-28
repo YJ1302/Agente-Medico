@@ -150,14 +150,19 @@
 </div>
 
 <div data-panel="rotaciones" style="display:none">
-  <div class="card"><div class="card-head"><h3><i class="bi bi-arrow-repeat"></i> Rotaciones activas</h3><span class="chip chip-info">{{ active_rotation_count }}</span></div>
-    {% if active_rotations %}
-    <div class="table-scroll"><table class="data"><thead><tr><th>Interno</th><th>Rotación</th><th>Periodo</th><th>Tutor</th></tr></thead>
-      <tbody>{% for a in active_rotations %}<tr><td>{{ a.student.full_name if a.student else '—' }}</td>
+  <div class="card"><div class="card-head"><h3><i class="bi bi-arrow-repeat"></i> Rotaciones vigentes</h3>
+    <span class="chip chip-info">{{ current_rotations|length }}</span></div>
+    <p style="color:var(--text-muted);font-size:13px;margin:0 0 10px">En curso y planificadas.
+      <a href="/rotations?sede={{ sede.id }}&period=all">Ver todas las rotaciones de la sede →</a></p>
+    {% if current_rotations %}
+    <div class="table-scroll"><table class="data"><thead><tr><th>Interno</th><th>Rotación</th><th>Periodo</th><th>Fechas</th><th>Tutor</th><th>Estado</th></tr></thead>
+      <tbody>{% for a in current_rotations %}<tr><td>{{ a.student.full_name if a.student else '—' }}</td>
         <td>{{ a.rotation_type.name if a.rotation_type else '—' }}</td><td>{{ a.period.name if a.period else '—' }}</td>
-        <td>{{ a.tutor.user.full_name if a.tutor else 'sin asignar' }}</td></tr>{% endfor %}</tbody>
+        <td style="white-space:nowrap">{% if a.start_date %}{{ a.start_date.strftime('%d/%m/%y') }}{% endif %}{% if a.end_date %}–{{ a.end_date.strftime('%d/%m/%y') }}{% endif %}</td>
+        <td>{{ a.tutor.user.full_name if a.tutor else 'sin asignar' }}</td>
+        <td><span class="chip chip-{{ 'success' if a.status=='active' else 'info' }}">{{ 'Activa' if a.status=='active' else 'Planificada' }}</span></td></tr>{% endfor %}</tbody>
     </table></div>
-    {% else %}<p style="color:var(--text-muted)">Sin rotaciones activas.</p>{% endif %}
+    {% else %}<p style="color:var(--text-muted)">Esta sede no tiene rotaciones en curso ni planificadas.</p>{% endif %}
   </div>
 </div>
 

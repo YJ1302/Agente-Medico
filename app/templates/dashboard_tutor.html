@@ -55,6 +55,19 @@
   </div>
   <div style="display:grid;gap:18px;align-content:start">
     <div class="card">
+      <div class="card-head"><h3><i class="bi bi-person-badge"></i> Mi coordinador de sede</h3></div>
+      {% if data.sede_coordinator %}
+      <div class="meta-grid">
+        <div class="m-item"><div class="m-label">Coordinador</div><div class="m-value">{{ data.sede_coordinator.user.full_name }}</div></div>
+        <div class="m-item"><div class="m-label">Sede</div><div class="m-value">{{ data.sede.short_name or data.sede.name if data.sede else '—' }}</div></div>
+        <div class="m-item"><div class="m-label">Correo</div><div class="m-value">{{ data.sede_coordinator.user.email }}</div></div>
+        {% if data.sede_coordinator.office_phone %}<div class="m-item"><div class="m-label">Teléfono</div><div class="m-value">{{ data.sede_coordinator.office_phone }}</div></div>{% endif %}
+      </div>
+      {% else %}
+      <p style="color:var(--text-muted)">{{ data.sede.short_name or data.sede.name if data.sede else 'Tu sede' }} aún no tiene coordinador principal asignado.</p>
+      {% endif %}
+    </div>
+    <div class="card">
       <div class="card-head"><h3><i class="bi bi-lightning-charge"></i> Accesos</h3></div>
       <div class="quick-actions">
         {% for qa in data.quick_actions %}

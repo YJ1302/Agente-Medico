@@ -103,6 +103,56 @@ def timeline(request: Request, identity: Identity = Depends(require_identity),
                   page_icon="calendar3", groups=groups, group=group)
 
 
+_TIMELINE_STATUS_ES = {"planned": "Planificada", "active": "Activa",
+                       "completed": "Completada", "cancelled": "Cancelada"}
+
+
+@router.get("/rotations/timeline/export.{fmt}")
+def timeline_export(fmt: str, request: Request,
+                    identity: Identity = Depends(require_identity),
+                    db: Session = Depends(get_db)):
+    """Excel/PDF of the rotation schedule, respecting the caller's scope."""
+    from fastapi.responses import Response
+
+    from app.authorization import ensure
+    from app.services import audit_service as audit
+    from app.services.audit_service import AuditService
+    from app.services.export_service import excel_from_table, pdf_from_table
+
+    svc = RotationService(db, identity)
+    rows = sorted(svc.list_assignments(),
+                  key=lambda a: (a.start_date or __import__("datetime").date.min,
+                                 a.sede.short_name if a.sede else ""))
+    headers = ["Interno", "Sede", "Rotación", "Periodo", "Inicio", "Fin", "Tutor", "Estado"]
+    table = [[
+        a.student.full_name if a.student else "—",
+        (a.sede.short_name or a.sede.name) if a.sede else "—",
+        a.rotation_type.name if a.rotation_type else "—",
+        a.period.name if a.period else "—",
+        a.start_date.strftime("%d/%m/%Y") if a.start_date else "",
+        a.end_date.strftime("%d/%m/%Y") if a.end_date else "",
+        a.tutor.user.full_name if a.tutor else "Sin tutor",
+        _TIMELINE_STATUS_ES.get(a.status, a.status),
+    ] for a in rows]
+    title = "Cronograma de rotaciones"
+    meta = {"Generado por": identity.full_name, "Total": str(len(table))}
+    AuditService(db).record(
+        audit.EXPORT_REPORT_EXCEL if fmt == "xlsx" else audit.EXPORT_REPORT_PDF,
+        identity=identity, entity_type="report", detail={"report": "rotation_timeline"},
+        ip_address=client_ip(request))
+    if fmt == "xlsx":
+        content = excel_from_table(title=title, headers=headers, rows=table, meta=meta,
+                                   sheet_name="Cronograma")
+        return Response(content=content,
+                        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        headers={"Content-Disposition": 'attachment; filename="cronograma_rotaciones.xlsx"'})
+    if fmt == "pdf":
+        content = pdf_from_table(title=title, headers=headers, rows=table, meta=meta)
+        return Response(content=content, media_type="application/pdf",
+                        headers={"Content-Disposition": 'attachment; filename="cronograma_rotaciones.pdf"'})
+    ensure(False, "Formato no soportado.", "export_format_invalid")
+
+
 @router.get("/rotations/new")
 def new_rotation(request: Request, identity: Identity = Depends(require_identity),
                  db: Session = Depends(get_db)):

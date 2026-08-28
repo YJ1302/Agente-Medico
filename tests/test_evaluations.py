@@ -312,6 +312,17 @@ def test_tutor_dashboard_scoped(tutor_client):
     assert "Internos MINSA" not in resp.text
 
 
+def test_tutor_dashboard_shows_sede_coordinator(tutor_client):
+    # The card is always present; its body is the coordinator's details when the
+    # sede has one, otherwise the "sin coordinador" note. (Other tests in the
+    # suite may reassign/deactivate the demo coordinator, so don't assert the
+    # name — just that the card is wired to the sede-coordinator lookup.)
+    html = tutor_client.get("/dashboard").text
+    assert "Mi coordinador de sede" in html
+    assert ("Correo" in html.split("Mi coordinador de sede", 1)[1][:400]
+            or "no tiene coordinador principal asignado" in html)
+
+
 def test_sede_dashboard_scoped(sede_client):
     resp = sede_client.get("/dashboard")
     assert resp.status_code == 200

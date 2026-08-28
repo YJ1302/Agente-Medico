@@ -129,15 +129,21 @@ def test_delete_empty_period_ok_but_blocked_when_in_use(admin):
 
 # -- top-bar period switcher -----------------------------------------
 
+def _rotation_result_count(html: str) -> int:
+    import re
+    m = re.search(r"(\d+)\s+resultado\(s\)", html)
+    assert m, "result count not found on /rotations"
+    return int(m.group(1))
+
+
 def test_set_period_scopes_rotations_list(admin):
     _post(admin, "/periods/generate-year", year=str(ROLLOVER_YEAR + 4))
     empty_period = _repos().periods.for_year(ROLLOVER_YEAR + 4)[0]
 
     admin.get(f"/set-period?period={empty_period.id}&next=/rotations",
               follow_redirects=False)
-    scoped = admin.get("/rotations")
-    assert "0 resultado(s)" in scoped.text
+    assert _rotation_result_count(admin.get("/rotations").text) == 0
 
     # Clearing the selection brings every period back.
     admin.get("/set-period?period=all&next=/rotations", follow_redirects=False)
-    assert "0 resultado(s)" not in admin.get("/rotations").text
+    assert _rotation_result_count(admin.get("/rotations").text) > 0

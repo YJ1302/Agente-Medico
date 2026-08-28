@@ -311,6 +311,35 @@ class RotationService:
         if tutor.sede_id != sede_id:
             raise ValidationError({"tutor_id": "El tutor debe pertenecer a la sede de la rotación."})
 
+    def _period_for_dates(self, start: date, end: date | None) -> int | None:
+        """Pick the academic period a rotation belongs to, from its dates.
+
+        Prefers the period whose range contains the start date; otherwise the
+        one with the largest overlap with [start, end]; otherwise the closest
+        period by start date. Returns ``None`` only when no period exists at all.
+        """
+        periods = self.repos.periods.ordered()
+        if not periods:
+            return None
+        end = end or start
+        containing = next((p for p in periods
+                           if p.start_date and p.end_date
+                           and p.start_date <= start <= p.end_date), None)
+        if containing:
+            return containing.id
+
+        def overlap(p) -> int:
+            if not (p.start_date and p.end_date):
+                return -10**6
+            lo, hi = max(start, p.start_date), min(end, p.end_date)
+            return (hi - lo).days
+        best = max(periods, key=overlap)
+        if overlap(best) > 0:
+            return best.id
+        closest = min(periods, key=lambda p: abs((p.start_date - start).days)
+                      if p.start_date else 10**6)
+        return closest.id
+
     def _validate_basic(self, data: dict) -> dict:
         v = FieldValidator()
         student_id = v.int_field("student_id", data.get("student_id"), "El interno")
@@ -322,13 +351,21 @@ class RotationService:
         sede_id = v.int_field("sede_id", data.get("sede_id"), "La sede")
         if not sede_id:
             v.add("sede_id", "La sede es obligatoria.")
-        period_id = v.int_field("period_id", data.get("period_id"), "El periodo")
-        if not period_id:
-            v.add("period_id", "El periodo es obligatorio.")
         start = v.date("start_date", data.get("start_date"), "La fecha de inicio")
         end = v.date("end_date", data.get("end_date"), "La fecha de término")
+        if not start:
+            v.add("start_date", "La fecha de inicio es obligatoria.")
         if start and end and end <= start:
             v.add("end_date", "La fecha de término debe ser posterior al inicio.")
+        # The academic period is derived from the dates — the user only picks the
+        # dates (Liz). An explicit period_id (e.g. from an admin override) still
+        # wins if provided.
+        period_id = v.int_field("period_id", data.get("period_id"), "El periodo")
+        if not period_id and start:
+            period_id = self._period_for_dates(start, end)
+        if not period_id:
+            v.add("period_id", "No hay un periodo académico que corresponda a esas "
+                               "fechas. Créelo en «Periodos Académicos».")
         status = v.choice("status", data.get("status"),
                           {AssignmentStatus.PLANNED.value, AssignmentStatus.ACTIVE.value},
                           "El estado") or AssignmentStatus.PLANNED.value
@@ -350,11 +387,14 @@ class RotationService:
                 return date.fromisoformat(v)
             except ValueError:
                 return None
+        start, end = _date("start_date"), _date("end_date")
+        period_id = _int("period_id")
+        if not period_id and start:
+            period_id = self._period_for_dates(start, end)
         return RotationInput(
             student_id=_int("student_id"), rotation_type_id=_int("rotation_type_id"),
-            sede_id=_int("sede_id"), period_id=_int("period_id"), tutor_id=_int("tutor_id"),
-            start_date=_date("start_date"), end_date=_date("end_date"),
-            assignment_id=exclude_id)
+            sede_id=_int("sede_id"), period_id=period_id, tutor_id=_int("tutor_id"),
+            start_date=start, end_date=end, assignment_id=exclude_id)
 
     def _enforce_conflicts(self, conflicts: list[Conflict], data: dict,
                            *, entity_id: int | None, ip: str | None) -> None:
@@ -402,7 +442,7 @@ class RotationService:
             "periods": [(p.id, p.name) for p in periods],
             # Date ranges for the form's client-side period auto-selection.
             "period_ranges": [
-                {"id": p.id, "start": p.start_date.isoformat(),
+                {"id": p.id, "name": p.name, "start": p.start_date.isoformat(),
                  "end": p.end_date.isoformat()}
                 for p in periods if p.start_date and p.end_date
             ],

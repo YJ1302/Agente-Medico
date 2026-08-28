@@ -8,6 +8,8 @@ entries for every mutation.
 
 from __future__ import annotations
 
+from datetime import date
+
 from sqlalchemy.orm import Session
 
 from app.authorization import ensure, is_admin, is_global_viewer, tutor_sede_ids
@@ -99,6 +101,14 @@ class SedeService:
             a for a in sede.rotation_assignments
             if not a.is_deleted and a.status == "active"
         ]
+        # "Vigentes" = in progress OR upcoming. A rotation stays "planned" until
+        # someone activates it, so filtering on "active" alone hid rotations the
+        # sede clearly has (Liz: "no se visualiza las rotaciones activas").
+        current_rotations = sorted(
+            (a for a in sede.rotation_assignments
+             if not a.is_deleted and a.status in ("active", "planned")),
+            key=lambda a: (a.start_date or date.min),
+        )
         pending_evals = [
             e for e in self.repos.evaluations.pending()
             if e.assignment and e.assignment.sede_id == sede.id
@@ -119,6 +129,7 @@ class SedeService:
             "student_count": len(students),
             "active_rotations": active_rotations,
             "active_rotation_count": len(active_rotations),
+            "current_rotations": current_rotations,
             "pending_eval_count": len(pending_evals),
             "alerts": alerts,
             "audit_rows": audit_rows,

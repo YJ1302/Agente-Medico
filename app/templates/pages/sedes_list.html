@@ -74,7 +74,9 @@
           <td>{{ {'hospital': 'Hospital', 'health_center': 'Centro de salud', 'clinic': 'Clínica'}.get(s.sede_type, s.sede_type) }}</td>
           <td>{{ s.city or '—' }}</td>
           <td>
-            {% if coord_map.get(s.id) %}{{ coord_map[s.id].user.full_name }}
+            {% if coord_map.get(s.id) %}
+              <span class="chip chip-success"><i class="bi bi-check-circle"></i> Asignado</span>
+              <br><small style="color:var(--text-muted)">{{ coord_map[s.id].user.full_name }}</small>
             {% else %}<span class="chip chip-warning"><i class="bi bi-exclamation-circle"></i> Sin coordinador</span>{% endif %}
           </td>
           <td>{% if s.is_active %}<span class="chip chip-success">Activa</span>{% else %}<span class="chip chip-danger">Inactiva</span>{% endif %}</td>

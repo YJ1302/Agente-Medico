@@ -112,6 +112,10 @@ class RoleDashboardService:
         act_svc = StudentActivityService(self.db, self.identity)
         pending_activities = act_svc.inbox()
         workload = compute_workload(self.repos.tutors.workload_count(tutor.id))
+        sede_coordinator = (
+            self.repos.sede_coordinators.active_principal_for_sede(tutor.sede_id)
+            if tutor.sede_id else None
+        )
 
         stat_cards = [
             {"key": "tutor_students", "label": "Internos asignados",
@@ -129,6 +133,8 @@ class RoleDashboardService:
             "pending_evaluations": pending_evals[:8],
             "pending_activities": pending_activities[:8],
             "workload": workload,
+            "sede": tutor.sede,
+            "sede_coordinator": sede_coordinator,
             "quick_actions": [
                 {"label": "Bandeja de verificación", "href": "/activities/verify", "icon": "inbox"},
                 {"label": "Mis evaluaciones", "href": "/evaluations", "icon": "check2-square"},

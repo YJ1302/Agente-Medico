@@ -3,6 +3,38 @@
 All notable changes to this project are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601.
 
+## [0.3.3] — Agente 360 feedback batch (Liz)
+
+### Changed
+- **Rotation form — dates only.** The "Periodo académico" field is no longer a
+  manual required dropdown; it is derived from the start/end dates and shown
+  read-only. `RotationService._period_for_dates()` picks the period containing
+  the start date, else the max-overlap period, else the closest one; it feeds
+  both the client-side label and the authoritative server-side validation
+  (`_validate_basic` / `_to_input`). `start_date` is now required.
+- **Sede detail → Rotaciones tab** now lists **vigentes** (active *and*
+  planned) rotations, not just `status == "active"` — a rotation stays "planned"
+  until activated, so the tab wrongly looked empty (Liz: "no se visualiza las
+  rotaciones activas"). Adds a status column, dates, and a "ver todas" link.
+  `SedeService.build_detail` gains `current_rotations`.
+- **Sedes list** — the Coordinador column now shows an explicit
+  `Asignado` / `Sin coordinador` chip on every row (was a bare name / warning).
+- **Tutores list** — the Carga chip shows `count/threshold` and the page
+  explains the term ("rotaciones activas o planificadas del tutor";
+  normal / cerca del umbral / sobre el umbral, with the threshold value).
+
+### Added
+- **`GET /rotations/timeline/export.{xlsx,pdf}`** — export the rotation
+  schedule (respects the caller's scope); buttons on the Cronograma page.
+- **Tutor dashboard** — "Mi coordinador de sede" card (name, sede, email,
+  phone), so a tutor can see who their sede coordinator is without digging into
+  Sedes. `RoleDashboardService.build_tutor_dashboard` gains `sede_coordinator`.
+
+### Tests
+`tests/test_rotations.py`: period derived from dates when omitted, timeline
+Excel/PDF export. `tests/test_evaluations.py`: tutor dashboard shows the sede
+coordinator.
+
 ## [0.3.2] — Rotation form: period auto-fill & multi-period rotations
 
 **Removes the guesswork when picking "Periodo académico".**
@@ -23,8 +55,6 @@ All notable changes to this project are documented here. Format loosely follows
   the dates. Picking a period while both date fields are empty fills them
   with the period's range. Driven by a new `period_ranges` entry in
   `RotationService.form_options()`.
-- `AcademicPeriodRepository.containing(day)` — the period whose range covers
-  a given date.
 
 ### Tests
 2 new tests in `tests/test_rotations.py`: a rotation spanning two periods is
