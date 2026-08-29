@@ -102,13 +102,19 @@ practical sense (queries, alerts, UI) while doubling the number of states to
 reason about. The review history — not a status enum value — is what actually
 needs to preserve "this was corrected."
 
-### D-025 · Interface language toggle (chrome-level i18n) (Batch 2B)
-**Decision:** Added a session-based ES/EN toggle (`app/i18n.py`) that translates
-the persistent **chrome** (navigation, top bar) via a local dictionary; page
-bodies remain Spanish. **Why:** the UI is authored in Spanish per requirements;
-a full body-level i18n of every template is out of scope for this batch. Fully
-offline (no external translation service). Full-page EN translation is a
-documented future enhancement.
+### D-025 · Interface language toggle — full-page EN via HTML post-translation
+**Decision:** The session-based ES/EN toggle now renders the **entire page** in
+English. `app/i18n_es_en.py` is a ~950-entry ES→EN phrase catalog; when
+`lang == "en"`, `i18n.translate_html` post-processes the rendered HTML —
+exact-match on trimmed text runs, then a word-boundary-guarded longest-first
+phrase pass, plus a few translatable attributes — skipping
+`<script>/<style>/<textarea>/<pre>/<code>`. **Why:** a per-template `{{ t() }}`
+rewrite of ~60 templates plus all server-generated label strings was far more
+invasive and error-prone than one post-processing pass; the catalog degrades
+gracefully (unknown strings stay Spanish) and grows without risk. Spanish (the
+default) never invokes the translator, so it has zero cost. User-entered data
+(names, document titles, free text) is deliberately not translated. Supersedes
+the earlier chrome-only dictionary (`_CHROME_EN`).
 
 ### D-024 · Conflict overrides are Admin-only, reason-mandatory, audited (Batch 2B)
 **Decision:** Institution mismatch, EsSalud community rotation and far-outside

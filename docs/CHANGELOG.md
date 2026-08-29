@@ -3,6 +3,31 @@
 All notable changes to this project are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601.
 
+## [0.3.4] — Full English UI + top-bar layout fix
+
+### Fixed
+- **Top bar overflowed / overlapped** once the academic-period switcher was
+  added — the long period name wrapped and collided with the language,
+  notification and user controls. The language and period buttons are now
+  proper pill buttons (`.pill-btn` / `.period-btn` in `style.css`): fixed
+  height, `white-space: nowrap`, a `max-width` with ellipsis on the label, and
+  a small green dot (instead of an "actual" chip) when the shown period is the
+  institution's current one. Below 820px they collapse to their icon.
+
+### Changed
+- **Interface language toggle now translates the whole page, not just the
+  chrome.** `app/i18n_es_en.py` holds a ~950-entry Spanish→English catalog;
+  `i18n.translate_html` post-processes the rendered HTML when the viewer picks
+  English — exact-match on trimmed text runs, then a word-boundary-guarded
+  longest-first phrase pass, plus `title` / `placeholder` / `aria-label` /
+  `alt` attributes. `<script>`, `<style>`, `<textarea>`, `<pre>`, `<code>`
+  are never touched. Spanish (the default) is completely unaffected — the
+  translator only runs for `lang == "en"`. Strings not in the catalog stay
+  Spanish, so coverage grows safely over time; user-entered data (names,
+  document titles, free text) is intentionally left as written.
+- `make_translator` (the `{{ t(...) }}` helper) is now backed by the same
+  catalog. The old `_CHROME_EN` dict is replaced by `ES_EN`.
+
 ## [0.3.3] — Agente 360 feedback batch (Liz)
 
 ### Changed

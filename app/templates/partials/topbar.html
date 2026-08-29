@@ -13,10 +13,11 @@
   <!-- Academic period switcher -->
   {% if all_periods %}
   <div class="dropdown">
-    <button class="icon-btn lang-btn" data-dropdown="periodMenu" title="{{ t('Periodo académico') }}">
+    <button class="icon-btn pill-btn period-btn" data-dropdown="periodMenu"
+            title="{{ t('Periodo académico') }}: {{ active_period.name if active_period else t('Todos los periodos') }}{% if not active_period_pinned %} ({{ t('actual') }}){% endif %}">
       <i class="bi bi-calendar3"></i>
-      {{ active_period.name if active_period else t('Todos los periodos') }}
-      {% if not active_period_pinned %}<span class="chip chip-muted" style="margin-left:4px">{{ t('actual') }}</span>{% endif %}
+      <span class="pill-btn-label">{{ active_period.name if active_period else t('Todos los periodos') }}</span>
+      {% if not active_period_pinned %}<span class="pill-dot" aria-hidden="true"></span>{% endif %}
     </button>
     <div class="dropdown-menu" id="periodMenu" style="min-width:230px">
       <div style="font-weight:700; padding:8px 11px; color:var(--navy)">{{ t('Ver periodo') }}</div>
@@ -38,10 +39,10 @@
   </div>
   {% endif %}
 
-  <!-- Language toggle (ES / EN chrome) -->
+  <!-- Language toggle (ES / EN) -->
   <div class="dropdown">
-    <button class="icon-btn lang-btn" data-dropdown="langMenu" title="{{ t('Idioma') }}">
-      <i class="bi bi-translate"></i> {{ lang | upper }}
+    <button class="icon-btn pill-btn" data-dropdown="langMenu" title="{{ t('Idioma') }}">
+      <i class="bi bi-translate"></i> <span class="pill-btn-label">{{ lang | upper }}</span>
     </button>
     <div class="dropdown-menu" id="langMenu">
       <div style="font-weight:700; padding:8px 11px; color:var(--navy)">{{ t('Traducir') }}</div>

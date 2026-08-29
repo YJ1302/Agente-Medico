@@ -12,9 +12,11 @@ from datetime import datetime
 from fastapi import Request
 from fastapi.templating import Jinja2Templates
 
+from fastapi.responses import HTMLResponse
+
 from app.config import APP_DIR, settings
 from app.csrf import get_csrf_token
-from app.i18n import get_lang, make_translator
+from app.i18n import get_lang, make_translator, translate_html
 from app.services.auth_service import Identity
 from app.services.navigation import sections_for_role
 from app.web import pop_flashes
@@ -110,6 +112,12 @@ def render(
     if identity is not None:
         base_context.update(_period_context(request))
     base_context.update(context)
-    return templates.TemplateResponse(
+    response = templates.TemplateResponse(
         template_name, base_context, status_code=status_code
     )
+    if lang == "en":
+        # Render the whole page in English by post-translating the HTML. The
+        # Spanish path is untouched (no cost).
+        translated = translate_html(response.body.decode("utf-8"))
+        response = HTMLResponse(translated, status_code=status_code)
+    return response
