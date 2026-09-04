@@ -3,6 +3,31 @@
 All notable changes to this project are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); dates are ISO-8601.
 
+## [0.3.5] — Fix slow/hanging Rotaciones page for Admin
+
+### Fixed
+- **`/rotations` loaded for a very long time (looked like it "didn't go
+  anywhere") for Administrador/Coordinador Universitario**, while it loaded
+  fine for a Sede Coordinador. Cause: the list view computed a per-row
+  "has conflict" warning icon by calling the full
+  `RotationConflictService.check()` for every row, which re-fetched the
+  student/sede/tutor/rotation type/period by id and re-queried the student's
+  other assignments — about 7 extra queries per row. A Coordinador only ever
+  sees their own sede's rotations (a handful of rows); an Admin sees every
+  rotation system-wide, so the same per-row cost scaled with the whole
+  dataset.
+  - `RotationConflictService.check()` now accepts already-loaded
+    `student`/`sede`/`tutor`/`rot`/`period`/`siblings` to skip the redundant
+    lookups, and an `include_warnings` flag to skip the two checks that are
+    never blocking anyway (tutor workload, unusual duration) — irrelevant for
+    the list icon but each cost their own query.
+  - `rotation_routes._conflicted_ids()` batches the student lookups into one
+    query for the whole page instead of one per row, and only runs against
+    the 12 rows actually rendered (`page.items`) rather than every filtered
+    row before pagination.
+  - Single-row callers (create/update/preview/detail) are unchanged — they
+    call `check()` the same way as before and keep the full check.
+
 ## [0.3.4] — Full English UI + top-bar layout fix
 
 ### Fixed

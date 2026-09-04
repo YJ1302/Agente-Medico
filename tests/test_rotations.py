@@ -365,3 +365,45 @@ def test_mutation_requires_csrf(admin):
 
 def test_get_transition_unavailable(admin):
     assert admin.get("/rotations/1/transition").status_code in (404, 405)
+
+
+# --- list view: conflict icon (bulk, not per-row) ---------------------------
+def test_rotations_list_conflicted_ids_matches_full_check(admin):
+    """rotation_routes._conflicted_ids() computes the list page's warning
+    icon in a couple of bulk queries (preloaded relations + one batched
+    siblings query) instead of the ~7 extra queries per row it used to run
+    via a full RotationConflictService.check() call per row — that per-row
+    cost is what made /rotations slow for Admin (sees every sede) while a
+    Sede Coordinador, scoped to their own sede, never noticed. Assert the
+    bulk path still agrees with a row-by-row full check(): it flags a row
+    with a real blocking conflict (institution mismatch) and not a clean
+    one, and doesn't flag a row against itself as its own "sibling"."""
+    from app.routes.rotation_routes import _conflicted_ids, _row_input
+    from app.services.auth_service import Identity
+    from app.services.rotation_service import RotationService
+
+    rr = _repos()
+    minsa_sede = next(s for s in rr.sedes.active() if s.institution_type.code == "MINSA")
+    essalud_inst = rr.institution_types.get_by_code("ESSALUD")
+    period = rr.periods.current()
+    mismatched_sid = _fresh_student(minsa_sede, institution_id=essalud_inst.id)
+    p = _payload(mismatched_sid, minsa_sede, period, rtype="3")
+    p["override_reason"] = "Excepción autorizada (demo)."
+    conflicted_aid = _new_id(admin, p)
+
+    sede, tutor, period = _minsa_context()
+    clean_sid = _fresh_student(sede)
+    clean_aid = _new_id(admin, _payload(clean_sid, sede, period, tutor.id))
+
+    db = SessionLocal()
+    identity = Identity(user_id=1, email="a", full_name="a", role_code="admin", role_name="a")
+    svc = RotationService(db, identity)
+    rows = [svc.repos.assignments.get_full(conflicted_aid), svc.repos.assignments.get_full(clean_aid)]
+
+    bulk = _conflicted_ids(svc, rows)
+    full = {a.id for a in rows if any(c.blocking for c in svc.conflicts.check(_row_input(a)))}
+
+    assert bulk == full
+    assert conflicted_aid in bulk
+    assert clean_aid not in bulk
+    db.close()

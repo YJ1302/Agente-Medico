@@ -56,13 +56,9 @@ def list_rotations(request: Request, identity: Identity = Depends(require_identi
         period = ""
     filters = _filters(q, period, rtype, sede, tutor, student, status, institution, tutorflag)
     rows = svc.list_assignments(**filters)
-    # Attach a lightweight conflict flag per row (has any current conflict).
-    conflicted = set()
-    for a in rows:
-        cs = svc.conflicts.check(_row_input(a))
-        if any(c.blocking for c in cs):
-            conflicted.add(a.id)
     paged = paginate(rows, page, PER_PAGE)
+    # Only the rendered page's rows need the warning icon computed.
+    conflicted = _conflicted_ids(svc, paged.items)
     base_qs = "".join(f"{k}={v}&" for k, v in
                       [("q", q), ("period", period), ("rtype", rtype), ("sede", sede),
                        ("tutor", tutor), ("student", student), ("status", status),
@@ -278,6 +274,35 @@ def _row_input(a):
     return RotationInput(student_id=a.student_id, rotation_type_id=a.rotation_type_id,
                          sede_id=a.sede_id, period_id=a.period_id, tutor_id=a.tutor_id,
                          start_date=a.start_date, end_date=a.end_date, assignment_id=a.id)
+
+
+def _conflicted_ids(svc: RotationService, rows: list) -> set[int]:
+    """IDs of rows with a blocking conflict, for the list-view warning icon.
+
+    Computed in two queries total (rows are already loaded; one more query
+    fetches every active/planned assignment for the students involved), not
+    one query per row — with the full rotations list (unscoped for Admin,
+    unlike Coordinador who only sees their own sede) that per-row check used
+    to run ~7 extra queries each, turning the page into a multi-second load.
+    """
+    from app.models.base import AssignmentStatus
+
+    student_ids = {a.student_id for a in rows if a.student_id}
+    siblings_by_student: dict[int, list] = {}
+    if student_ids:
+        for sa in svc.repos.assignments.search(student_ids=student_ids):
+            if sa.status in (AssignmentStatus.ACTIVE.value, AssignmentStatus.PLANNED.value):
+                siblings_by_student.setdefault(sa.student_id, []).append(sa)
+
+    conflicted = set()
+    for a in rows:
+        siblings = [s for s in siblings_by_student.get(a.student_id, []) if s.id != a.id]
+        cs = svc.conflicts.check(_row_input(a), student=a.student, sede=a.sede, tutor=a.tutor,
+                                 rot=a.rotation_type, period=a.period, siblings=siblings,
+                                 include_warnings=False)
+        if any(c.blocking for c in cs):
+            conflicted.add(a.id)
+    return conflicted
 
 
 def _rerender_form(request, identity, svc, form, errors, conflicts, mode,

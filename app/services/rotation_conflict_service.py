@@ -66,13 +66,28 @@ class RotationConflictService:
     def __init__(self, repos: RepositoryBundle) -> None:
         self.repos = repos
 
-    def check(self, data: RotationInput) -> list[Conflict]:
+    def check(self, data: RotationInput, *, student=None, sede=None, tutor=None,
+              rot=None, period=None, siblings=None, include_warnings: bool = True) -> list[Conflict]:
+        """Run the conflict checks.
+
+        Callers with an already-loaded ``RotationAssignment`` (its relations
+        are eager-loaded by the repository) can pass ``student``/``sede``/
+        ``tutor``/``rot``/``period``/``siblings`` directly to skip the
+        redundant per-field ``.get()`` + sibling-search queries below — see
+        the list-view caller in rotation_routes.py, which otherwise turned
+        "show all rotations" into N rows × ~7 queries each.
+        """
         conflicts: list[Conflict] = []
-        student = self.repos.students.get(data.student_id) if data.student_id else None
-        sede = self.repos.sedes.get(data.sede_id) if data.sede_id else None
-        tutor = self.repos.tutors.get(data.tutor_id) if data.tutor_id else None
-        rot = self.repos.rotation_types.get(data.rotation_type_id) if data.rotation_type_id else None
-        period = self.repos.periods.get(data.period_id) if data.period_id else None
+        if student is None and data.student_id:
+            student = self.repos.students.get(data.student_id)
+        if sede is None and data.sede_id:
+            sede = self.repos.sedes.get(data.sede_id)
+        if tutor is None and data.tutor_id:
+            tutor = self.repos.tutors.get(data.tutor_id)
+        if rot is None and data.rotation_type_id:
+            rot = self.repos.rotation_types.get(data.rotation_type_id)
+        if period is None and data.period_id:
+            period = self.repos.periods.get(data.period_id)
 
         # F. Student inactive.
         if student and (not student.is_active or student.is_deleted):
@@ -92,9 +107,15 @@ class RotationConflictService:
                 "Tutor de otra sede",
                 "El tutor no pertenece a la sede de la asignación.", True))
 
+        # A/B share the student's other active/planned assignments — reuse
+        # preloaded ``siblings`` when the caller has them (list view), else
+        # fetch (single-row callers: create/update/preview/detail).
+        sibling_rows = siblings if siblings is not None else (
+            self._student_active_planned(student.id, data.assignment_id) if student else [])
+
         # A. Student overlap (planned/active) with proposed dates.
         if student and data.start_date and data.end_date:
-            for a in self._student_active_planned(student.id, data.assignment_id):
+            for a in sibling_rows:
                 if a.start_date and a.end_date and _overlaps(
                     data.start_date, data.end_date, a.start_date, a.end_date):
                     conflicts.append(self._c(STUDENT_OVERLAP, "critical",
@@ -105,7 +126,7 @@ class RotationConflictService:
 
         # B. Duplicate core rotation in same period.
         if student and rot and period and rot.is_core:
-            for a in self._student_active_planned(student.id, data.assignment_id):
+            for a in sibling_rows:
                 if a.rotation_type_id == rot.id and a.period_id == period.id:
                     conflicts.append(self._c(DUPLICATE_CORE_ROTATION, "critical",
                         "Rotación core duplicada",
@@ -151,8 +172,9 @@ class RotationConflictService:
                     f"«{period.name}». Verifique que el periodo sea el correcto.",
                     False))
 
-        # J. Tutor workload — warning only.
-        if tutor:
+        # J. Tutor workload — warning only. Skippable: it never blocks, and
+        # costs its own query (workload_count), not worth it for bulk/list use.
+        if include_warnings and tutor:
             from app.services.staff_service import compute_workload
             wl = compute_workload(self.repos.tutors.workload_count(tutor.id))
             if wl.level in ("near", "above"):
@@ -162,8 +184,8 @@ class RotationConflictService:
                     f"El tutor tiene {wl.count} asignación(es) "
                     f"(umbral {wl.threshold}). Confirme para continuar.", False))
 
-        # K. Unusual duration vs the rotation type's expected weeks.
-        if rot and data.start_date and data.end_date and rot.typical_weeks:
+        # K. Unusual duration vs the rotation type's expected weeks — warning only.
+        if include_warnings and rot and data.start_date and data.end_date and rot.typical_weeks:
             days = (data.end_date - data.start_date).days
             expected = rot.typical_weeks * 7
             if expected and abs(days - expected) > expected * settings.rotation_duration_tolerance_ratio:
